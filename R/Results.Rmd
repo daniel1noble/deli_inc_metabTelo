@@ -49,196 +49,62 @@ str(data)
 data %<>% select(-prior_temp)
 ```
 
-## Model selection of random effects structure
-We fitted four different models with different combination of random effects to determine what is the best model structure for data analysis.
-Based on previous study presented in Chapter X (Kar et al 2020), we found that individuals displayed consistent variation in their response to acute temperature change. We also found that within individual variation as well as measurement error varied across temperatures. We therefore included random linear slope for individual identity and the measurement error term. In some models, we also assumed individual variation and measurement error were constant by included only a random intercept for these terms. In one model, we allowed residuals which includes within individual variation to vary with temperature. 
-
-```{r, eval = FALSE, cache = TRUE}
-## Tabulatng it nicely
-#Read in models
-mod.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.2.obj") #Homo resids linear slopes for all
-mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME and series
-# mod.4.mm.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.mm.obj") 
-mod.5.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.5.obj") #Intercept ID, slopes for ME and SampSessions
-mod.6.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.6.obj") #Intercept for ID, ME and slope for session
-
-#Compute their IC
-waic_mod.2.obj <- waic(mod.2.obj)
-loo_mod.2.obj <- loo(mod.2.obj)
-
-# waic_mod.3.obj <- waic(mod.3.obj)
-# loo_mod.3.obj <- loo(mod.3.obj)
-
-waic_mod.4.obj <- waic(mod.4.obj)
-loo_mod.4.obj <- loo(mod.4.obj)
-# loo_mod.4.mm.obj <- loo(mod.4.mm.obj, moment_match = T)
-# loo_mod.4.obj_mm <- loo_moment_match(x = mod.4.mm.obj, loo = loo_mod.4.mm.obj) #Submitted amd gonna test it out...nope
-
-waic_mod.5.obj <- waic(mod.5.obj)
-loo_mod.5.obj <- loo(mod.5.obj)
-
-waic_mod.6.obj <- waic(mod.6.obj)
-loo_mod.6.obj <- loo(mod.6.obj)
-
-#Creating table
-RE_compare_WAIC <- data.frame(matrix(nrow = 4, ncol = 4))
-colnames(RE_compare_WAIC) <- c("Model", "WAIC value", "ELPD Diff", "SE Diff")
-
-#Fill in Model str
-RE_compare_WAIC[1,1] <- c("(1 + temp | id) + (1 + temp | series_temp)") #mod.2.obj
-RE_compare_WAIC[2,1] <- c("(1 | id) + (1 + temp | series_temp)") #mod.5.obj
-RE_compare_WAIC[3,1] <- c("(1 + temp | id) + (1 | series_temp)") #mod.4.obj
-RE_compare_WAIC[4,1] <- c("(1 + temp + temp_I2 | id) + (1 + temp + temp_I2 | series_temp)") #mod.6.obj
-#RE_compare_WAIC[5,1] <- c("(1 + temp | id) + (1 + temp | series_temp), sigma ~ temp") #mod.3.obj
-
-#Fill in WAIC estimate
-RE_compare_WAIC[1,2] <-  waic_mod.2.obj$estimates[3,1] %>% round(2) #mod.2.obj
-RE_compare_WAIC[2,2] <-  waic_mod.5.obj$estimates[3,1] %>% round(2) #mod.5.obj
-RE_compare_WAIC[3,2] <-  waic_mod.4.obj$estimates[3,1] %>% round(2) #mod.4.obj
-RE_compare_WAIC[4,2] <-  waic_mod.6.obj$estimates[3,1] %>% round(2) #mod.6.obj
-#RE_compare_WAIC[5,2] <-  waic_mod.3.obj$estimates[3,1] %>% round(2) #mod.3.obj
-
-#Fill in ELPD of diff estimate
-WAIC_compare <- loo_compare(waic_mod.4.obj, waic_mod.5.obj, waic_mod.2.obj, waic_mod.6.obj)
-
-#Rerrange by WAIC values
-RE_compare_WAIC %<>% arrange(`WAIC value`)
-
-RE_compare_WAIC[1,3] <-  WAIC_compare[1,1] %>% round(2) 
-RE_compare_WAIC[2,3] <-  WAIC_compare[2,1] %>% round(2) 
-RE_compare_WAIC[3,3] <-  WAIC_compare[3,1] %>% round(2) 
-RE_compare_WAIC[4,3] <-  WAIC_compare[4,1] %>% round(2) 
-#RE_compare_WAIC[5,3] <-  WAIC_compare[5,1] %>% round(2) 
-  
-#Fill in SE of diff estimate
-RE_compare_WAIC[1,4] <-  WAIC_compare[1,2] %>% round(2) 
-RE_compare_WAIC[2,4] <-  WAIC_compare[2,2] %>% round(2) 
-RE_compare_WAIC[3,4] <-  WAIC_compare[3,2] %>% round(2) 
-RE_compare_WAIC[4,4] <-  WAIC_compare[4,2] %>% round(2) 
-#RE_compare_WAIC[5,4] <-  WAIC_compare[5,2] %>% round(2) 
-
-#Tabulating LOO values
-RE_compare_LOO <- data.frame(matrix(nrow = 4, ncol = 4))
-colnames(RE_compare_LOO) <- c("Model", "LOO value", "ELPD Diff", "SE Diff")
-
-#Fill in Model str
-RE_compare_LOO[1,1] <- c("(1 | id) + (1 + temp | series_temp)") #mod.5.obj
-RE_compare_LOO[2,1] <- c("(1 + temp | id) + (1 + temp | series_temp)") #mod.2.obj 
-RE_compare_LOO[3,1] <- c("(1 + temp | id) + (1 | series_temp)") #mod.4.obj
-RE_compare_LOO[4,1] <- c("(1 + temp + temp_I2 | id) + (1 + temp + temp_I2 | series_temp)") #mod.6.obj
-#RE_compare_LOO[5,1] <- c("(1 + temp | id) + (1 + temp | series_temp), sigma ~ temp") #mod.3.obj
-
-#Fill in LOO estimate
-RE_compare_LOO[1,2] <-  loo_mod.5.obj$estimates[3,1] %>% round(2) #mod.5.obj
-RE_compare_LOO[2,2] <-  loo_mod.2.obj$estimates[3,1] %>% round(2) #mod.2.obj
-RE_compare_LOO[3,2] <-  loo_mod.4.obj$estimates[3,1] %>% round(2) #mod.4.obj
-RE_compare_LOO[4,2] <-  loo_mod.6.obj$estimates[3,1] %>% round(2) #mod.6.obj
-#RE_compare_LOO[5,2] <-  loo_mod.3.obj$estimates[3,1] %>% round(2) #mod.3.obj
-
-#Fill in ELPD of diff estimate
-LOO_compare <- loo_compare(loo_mod.4.obj, loo_mod.5.obj, loo_mod.2.obj, loo_mod.6.obj)
-
-#Rerrange by WAIC values
-RE_compare_LOO %<>% arrange(`LOO value`)
-
-RE_compare_LOO[1,3] <-  LOO_compare[1,1] %>% round(2) #mod.3.obj
-RE_compare_LOO[2,3] <-  LOO_compare[2,1] %>% round(2) #mod.5.obj
-RE_compare_LOO[3,3] <-  LOO_compare[3,1] %>% round(2) #mod.4.obj
-RE_compare_LOO[4,3] <-  LOO_compare[4,1] %>% round(2) #mod.2.obj
-#RE_compare_LOO[5,3] <-  LOO_compare[5,1] %>% round(2) #mod.6.obj
-  
-#Fill in SE of diff estimate
-RE_compare_LOO[1,4] <-  LOO_compare[1,2] %>% round(2) #mod.3.obj
-RE_compare_LOO[2,4] <-  LOO_compare[2,2] %>% round(2) #mod.5.obj
-RE_compare_LOO[3,4] <-  LOO_compare[3,2] %>% round(2) #mod.4.obj
-RE_compare_LOO[4,4] <-  LOO_compare[4,2] %>% round(2) #mod.2.obj
-#RE_compare_LOO[5,4] <-  LOO_compare[5,2] %>% round(2) #mod.6.obj
-```
-
-```{r, eval = FALSE, include = TRUE}
-pander(RE_compare_WAIC,
-       justify = "lccc",
-       #split.cell = 80,
-       caption = "Table SX Comparisons of WAIC values for four models with different combinations of random effects structures for individual variance and measurement error")
-
-pander(RE_compare_LOO,
-       justify = "lccc",
-       #split.cell = 80,
-       caption = "Table SX Comparisons of LOO values for four models with different combinations of random effects structures for individual variance and measurement error")
-```
-
 ## Heterogenous variance 
+Model with homogenous variance was best supported by WAIC values. As such, we did not explicitly model residuals in all subsequent models
 ```{r}
 mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME HOMO
 mod.4.het.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.het.obj") #Intercept ME Hetero
 
 #Add IC
 waic_mod.4.obj<- waic(mod.4.obj)
-loo_mod.4.obj <- loo(mod.4.obj)
 
 waic_mod.4.het.obj <- waic(mod.4.het.obj)
-loo_mod.4.het.obj <- loo(mod.4.het.obj)
 
 #Compare
 WAIC_compare_resid <- loo_compare(waic_mod.4.obj, waic_mod.4.het.obj)
-LOO_compare_resid  <- loo_compare(loo_mod.4.obj, waic_mod.4.het.obj)
 
 #Creating table
-Resid_compare_WAIC <- data.frame(matrix(nrow = 4, ncol = 5))
-colnames(Resid_compare_WAIC) <- c("Model", "IC type",  "IC value", "ELPD Diff", "SE Diff")
-Resid_compare_WAIC$Model <- rep(c("Homogenous residuals", "Heterogennous residuals"), 2)
-Resid_compare_WAIC$`IC type` <- rep(c("WAIC", "LOO"), each = 2)
+Resid_compare_WAIC <- data.frame(matrix(nrow = 2, ncol = 4))
+colnames(Resid_compare_WAIC) <- c("Model", "WAIC value", "ELPD Diff", "SE Diff")
+Resid_compare_WAIC$Model <- c("Homogenous residuals", "Heterogenous residuals")
 
 #WAIC
-Resid_compare_WAIC[1,3] <- waic_mod.4.obj$estimates[3,1] %>% round(2)
-Resid_compare_WAIC[2,3] <- waic_mod.4.het.obj$estimates[3,1] %>% round(2)
-
-#LOO
-Resid_compare_WAIC[3,3] <- loo_mod.4.obj$estimates[3,1] %>% round(2)
-Resid_compare_WAIC[4,3] <- loo_mod.4.het.obj$estimates[3,1] %>% round(2)
+Resid_compare_WAIC[1,2] <- waic_mod.4.obj$estimates[3,1] %>% round(2)
+Resid_compare_WAIC[2,2] <- waic_mod.4.het.obj$estimates[3,1] %>% round(2)
 
 #ELPD and SE
 #WAIC
-Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,1] %>% round(2)
-Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,1] %>% round(2)
+Resid_compare_WAIC[1,3] <- WAIC_compare_resid[1,1] %>% round(2)
+Resid_compare_WAIC[2,3] <- WAIC_compare_resid[2,1] %>% round(2)
 
-Resid_compare_WAIC[1,5] <- WAIC_compare_resid[1,2] %>% round(2)
-Resid_compare_WAIC[2,5] <- WAIC_compare_resid[2,2] %>% round(2)
+Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,2] %>% round(2)
+Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,2] %>% round(2)
 
-#LOO
-Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,1] %>% round(2)
-Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,1] %>% round(2)
-
-Resid_compare_WAIC[1,5] <- WAIC_compare_resid[1,2] %>% round(2)
-Resid_compare_WAIC[2,5] <- WAIC_compare_resid[2,2] %>% round(2)
 ```
 
 ```{r, eval = TRUE}
 pander(Resid_compare_WAIC,
        justify = "lcccc",
        #split.cell = 80,
-       caption = "Table SX Comparisons of LOO values for homogenous and hetergenous residuals")
+       caption = "Table SX Comparisons of WAIC values for homogenous and hetergenous residuals")
 ```
-
 
 ```{r}
 #Fixed effects model selection
+cc_mod.1.obj <- readRDS("output/rds/cc_mod.1.obj")
 cc_mod.2.obj <- readRDS("output/rds/cc_mod.2.obj")
 cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
 
 #Add IC
+waic_cc_mod.1.obj <- waic(cc_mod.1.obj)
 waic_cc_mod.2.obj <- waic(cc_mod.2.obj)
-loo_cc_mod.2.obj <- loo(cc_mod.2.obj)
-
 waic_cc_mod.3.obj <- waic(cc_mod.3.obj)
-loo_cc_mod.3.obj <- loo(cc_mod.3.obj)
 
-loo_compare(waic_cc_mod.2.obj, waic_cc_mod.3.obj)
-loo_compare(loo_cc_mod.2.obj, loo_cc_mod.3.obj)
+loo_compare(waic_cc_mod.1.obj, waic_cc_mod.2.obj, waic_cc_mod.3.obj)
 ```
 
 ```{r}
-#Tabulate the model coefficients for CC model
+#Tabulate the model coefficients for all CC model
 #Read in model
 cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
 
