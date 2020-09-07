@@ -46,7 +46,7 @@ mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Lon
 
 ## Heterogenous variance 
 Model with homogenous variance was best supported by WAIC values. As such, we did not explicitly model residuals in all subsequent models
-```{r}
+```{r, eval = TRUE}
 mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME HOMO
 mod.4.het.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.het.obj") #Intercept ME Hetero
 
@@ -180,7 +180,7 @@ pander(mod.imp.3_coeffs,
        caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used an imputated dataset, n = 6000")
 ```
 
-```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7, cache = TRUE}
+```{r, eval = TRUE, cache = TRUE}
 cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
 
 #Make a figure from model predictions using cc_mod.2.obj
@@ -213,7 +213,9 @@ subset_cold <- sample(cold_ids, 10 , replace = F)
 
 set.seed(7)
 subset_hot <- sample(hot_ids, 10 , replace = F)
+```
 
+```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5}
 #Filter out the subset IDS
 model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
   ggplot(aes(x = temp, y = mean_lnmr)) + 
@@ -232,10 +234,9 @@ model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %
   theme(legend.position = "none",
         strip.text = element_text(size = 18),
         strip.background = element_blank())
-
 ```
 
-```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7, cache = TRUE}
+```{r, eval = TRUE, cache = TRUE}
 #Read in model
 mod.imp.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3")
 
@@ -255,7 +256,9 @@ rownames(imp_model_predictions) <- NULL
 #Check it
 imp_model_predictions %>% filter(id == "ld0449" & samp_session == 1) #Fantastic
 model_predictions %>% filter(id == "ld0449" & samp_session == 1)
+```
 
+```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5}
 #Filter out the subset IDS
 imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
   ggplot(aes(x = temp, y = mean_lnmr)) + 
@@ -276,7 +279,7 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
         strip.background = element_blank())
 ```
 
-```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7, warning= FALSE}
+```{r, eval = TRUE}
 #Treatment differences in temperature specific repeatabilty
 # Read in models
 cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
@@ -296,7 +299,9 @@ hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj))
 hot_rpt %<>%  mutate(treatment = "hot")
 
 rpt_data <- bind_rows(cold_rpt, hot_rpt)
+```
 
+```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
 #plot this
 ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
   geom_point(position = position_dodge(0.5), size = 4) + 
