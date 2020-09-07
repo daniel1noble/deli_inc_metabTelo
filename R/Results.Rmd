@@ -38,15 +38,10 @@ my_theme <- theme(#legend.position = "none",
 source("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/R/functions/helper.R")
 ```
 
-```{r}
+```{r, eval = TRUE}
 ## Read in data
 data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR.csv", stringsAsFactors = F)
 mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
-
-str(data)
-
-## We don't need prior_temp
-data %<>% select(-prior_temp)
 ```
 
 ## Heterogenous variance 
@@ -185,7 +180,7 @@ pander(mod.imp.3_coeffs,
        caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used an imputated dataset, n = 6000")
 ```
 
-```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7}
+```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7, cache = TRUE}
 cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
 
 #Make a figure from model predictions using cc_mod.2.obj
@@ -240,7 +235,7 @@ model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %
 
 ```
 
-```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7}
+```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7, cache = TRUE}
 #Read in model
 mod.imp.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3")
 
@@ -281,64 +276,17 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
         strip.background = element_blank())
 ```
 
-```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7}
+```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7, warning= FALSE}
 #Treatment differences in temperature specific repeatabilty
 # Read in models
-cc_cold.2.obj <- readRDS("output/rds/cc_cold.2.obj")
-cc_hot.2.obj <- readRDS("output/rds/cc_hot.2.obj")
+cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
+cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
 
 #Poster names
 names(posterior_samples(cc_cold.2.obj))[1:10]
 
-#Function to calculate temperature specific repeatability
-brms_rpt <- function(x, model){
-    #Strings to search for relevant (co)variance components
-    id_vars <- paste0("sd_","id")
-    id_cors <- paste0("cor_","id")
-    
-    #Extract the relevant sd/(co)variance components for ID 
-    SD <- posterior_samples(model, id_vars)
-    COR <- posterior_samples(model, id_cors) 
-    V <- SD^2
-    names(V) <- str_replace(names(V), "sd", "var")
-    #Convert correlation to covariance #Cor(1,2) * (SD1 X SD2) = Cov(1,2)
-    COV <- cbind(COR[1] * (SD[1] * SD[2]))
-    names(COV) <- str_replace(names(COV), "cor", "cov")
-    
-    # Now, add everything together while accounting for covariances and their respective powers
-    V_id <- V[1] + (x^2)*V[2] +  #The V of the intercept and linear slope
-      2*x*COV[1]    # Covariance of intercept and linear slope
-    
-    #Samp session variance
-    #Strings to search for relevant (co)variance components
-    ss_vars <- paste0("sd_samp")
-    
-    #Extract the relevant sd/(co)variance components 
-    SD_SS <- posterior_samples(model, ss_vars)
-    
-    #Squaring SD to get the variance
-    V_SS <- (SD_SS)^2 
-    
-    #Residuals
-    SD_e <- posterior_samples(model, "sigma") # Extract the variance of intercept, linear slope
-    
-    #Squaring SD to get the variance
-    V_resid <- (SD_e)^2 
-    
-    #Calculate total phenotypic variance
-    VtotalP <- V_id + V_SS + V_resid 
-    
-    #    # Calculate repeatability (proportion of variance explained by consistent ID variance)
-    R <- V_id  / VtotalP
-    
-    df <- data.frame(temp = x,
-                     rpt = posterior_summary(R)[1] %>% round(2),
-                     Lower =  posterior_summary(R)[3] %>% round(2),
-                     Upper =  posterior_summary(R)[4] %>% round(2))
-
-    return(df)
-}
-
+#Temp define:
+temp <- seq(24,34, by = 2)
 #map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
 
 cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj)))
@@ -361,11 +309,6 @@ ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = trea
   theme_bw() +
   my_theme + 
   theme(legend.position = "none") 
-```
-
-```{r}
-#Overall repeatability
-overall_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_mod.3.obj)))
 ```
 
 ## How does developmental temperature affect temperature specific repeatability
