@@ -3,10 +3,10 @@ title: "Results"
 author: "Fonti Kar"
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    reference_docx: Style_guide.docx
   html_document:
     df_print: paged
+  word_document:
+    reference_docx: Style_guide.docx
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -35,7 +35,7 @@ my_theme <- theme(#legend.position = "none",
   plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
   plot.background = element_rect(colour = "white"))
 
-source("R/functions/helper.R")
+source("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/R/functions/helper.R")
 ```
 
 ```{r}
@@ -82,7 +82,7 @@ Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,2] %>% round(2)
 
 ```
 
-```{r, eval = TRUE}
+```{r, eval = TRUE, include = TRUE}
 pander(Resid_compare_WAIC,
        justify = "lcccc",
        #split.cell = 80,
@@ -91,9 +91,9 @@ pander(Resid_compare_WAIC,
 
 ```{r}
 #Fixed effects model selection
-cc_mod.1.obj <- readRDS("output/rds/cc_mod.1.obj")
-cc_mod.2.obj <- readRDS("output/rds/cc_mod.2.obj")
-cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
+cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.1.obj")
+cc_mod.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.2.obj")
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
 
 #Add IC
 waic_cc_mod.1.obj <- waic(cc_mod.1.obj)
@@ -103,11 +103,11 @@ waic_cc_mod.3.obj <- waic(cc_mod.3.obj)
 loo_compare(waic_cc_mod.1.obj, waic_cc_mod.2.obj, waic_cc_mod.3.obj)
 ```
 
-```{r}
+```{r, eval = TRUE}
 #Tabulate the model coefficients for all CC model
 #Read in models
-cc_mod.1.obj <- readRDS("output/rds/cc_mod.1.obj")
-cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
+cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.1.obj")
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
 
 #Model without interaction
 #Extract entire posterior
@@ -144,7 +144,7 @@ rownames(cc_mod.3_coeffs) <- NULL
 cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
 ```
 
-```{r}
+```{r, eval = TRUE, include = TRUE}
 pander(cc_mod.1_coeffs,
        justify = "lccc",
        #split.cell = 80,
@@ -156,10 +156,10 @@ pander(cc_mod.3_coeffs,
        caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
 ```
 
-```{r}
+```{r, eval = TRUE}
 #Tabulate the model coefficients for imp model
 #Read in model
-mod.imp.3.obj <- readRDS("output/rds/mod.imp.3")
+mod.imp.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3")
 
 #Extract entire posterior
 mod.imp.3_post <- posterior_samples(mod.imp.3.obj)
@@ -178,15 +178,15 @@ rownames(mod.imp.3_coeffs) <- NULL
 mod.imp.3_coeffs <- mod.imp.3_coeffs[,c(4,1:3)]
 ```
 
-```{r}
+```{r, eval = TRUE, include = TRUE}
 pander(mod.imp.3_coeffs,
        justify = "lccc",
        #split.cell = 80,
        caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used an imputated dataset, n = 6000")
 ```
 
-```{r}
-cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
+```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7}
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
 
 #Make a figure from model predictions using cc_mod.2.obj
 cc_mod.3.imp.post <- posterior_samples(cc_mod.3.obj) 
@@ -240,9 +240,9 @@ model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %
 
 ```
 
-```{r, include = TRUE}
+```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7}
 #Read in model
-mod.imp.3.obj <- readRDS("output/rds/mod.imp.3")
+mod.imp.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3")
 
 #Make a figure from model predictions using mod.imp.3.obj
 mod.3.imp.post <- posterior_samples(mod.imp.3.obj) 
@@ -281,7 +281,7 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
         strip.background = element_blank())
 ```
 
-```{r, include = TRUE, fig.height = 9.5, fig.width = 6.7}
+```{r, eval = TRUE, include = TRUE, fig.height = 9.5, fig.width = 6.7}
 #Treatment differences in temperature specific repeatabilty
 # Read in models
 cc_cold.2.obj <- readRDS("output/rds/cc_cold.2.obj")
@@ -361,7 +361,6 @@ ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = trea
   theme_bw() +
   my_theme + 
   theme(legend.position = "none") 
-
 ```
 
 ```{r}
