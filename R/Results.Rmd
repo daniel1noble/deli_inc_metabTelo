@@ -105,19 +105,36 @@ loo_compare(waic_cc_mod.1.obj, waic_cc_mod.2.obj, waic_cc_mod.3.obj)
 
 ```{r}
 #Tabulate the model coefficients for all CC model
-#Read in model
+#Read in models
+cc_mod.1.obj <- readRDS("output/rds/cc_mod.1.obj")
 cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
 
-summary(cc_mod.3.obj)
-
+#Model without interaction
 #Extract entire posterior
-cc_mod.3_post <- posterior_samples(cc_mod.3.obj)
+cc_mod.1_post <- posterior_samples(cc_mod.1.obj)
 #Names of each column
-colnames(cc_mod.3_post)[1:11]
+colnames(cc_mod.1_post)[1:11]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cc_mod.3_coeffs <- cc_mod.3_post[1:11] %>% posterior_summary() %>% round(3) 
+cc_mod.1_coeffs <- cc_mod.1_post[1:11] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_mod.1_coeffs <- as.data.frame(cc_mod.1_coeffs)
+cc_mod.1_coeffs$Parameter <- c(rownames(cc_mod.1_coeffs))
+rownames(cc_mod.1_coeffs) <- NULL 
+cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(4,1:3)]
+
+#Full model
+#Extract entire posterior
+cc_mod.3_post <- posterior_samples(cc_mod.3.obj)
+#Names of each column
+colnames(cc_mod.3_post)[1:12]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_mod.3_coeffs <- cc_mod.3_post[1:12] %>% posterior_summary() %>% round(3) 
 #Excluding est. error
 cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -128,6 +145,11 @@ cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
 ```
 
 ```{r}
+pander(cc_mod.1_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
+
 pander(cc_mod.3_coeffs,
        justify = "lccc",
        #split.cell = 80,
@@ -138,8 +160,6 @@ pander(cc_mod.3_coeffs,
 #Tabulate the model coefficients for imp model
 #Read in model
 mod.imp.3.obj <- readRDS("output/rds/mod.imp.3")
-
-summary(mod.imp.3.obj)
 
 #Extract entire posterior
 mod.imp.3_post <- posterior_samples(mod.imp.3.obj)
@@ -156,6 +176,13 @@ mod.imp.3_coeffs <- as.data.frame(mod.imp.3_coeffs)
 mod.imp.3_coeffs$Parameter <- c(rownames(mod.imp.3_coeffs))
 rownames(mod.imp.3_coeffs) <- NULL 
 mod.imp.3_coeffs <- mod.imp.3_coeffs[,c(4,1:3)]
+```
+
+```{r}
+pander(mod.imp.3_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used an imputated dataset, n = 6000")
 ```
 
 ```{r}
