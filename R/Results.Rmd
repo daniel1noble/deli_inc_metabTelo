@@ -1,0 +1,481 @@
+---
+title: "Results"
+author: "Fonti Kar"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    reference_docx: Style_guide.docx
+  html_document:
+    df_print: paged
+---
+
+```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(eval = FALSE,
+                      echo = FALSE, 
+                      include = FALSE, 
+                      warning = FALSE,
+                      message = FALSE)
+rm(list=ls())
+sessionInfo()
+
+# R version 3.6.1 (2019-07-05)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS High Sierra 10.13.6
+
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr)
+
+my_theme <- theme(#legend.position = "none",
+  legend.position = "bottom",
+  legend.text =element_text(size = 14),
+  legend.title =element_text(size = 14, face = "bold"),
+  panel.grid.major = element_blank(), 
+  panel.grid.minor = element_blank(),
+  axis.text=element_text(size=16),
+  axis.title=element_text(size=16),
+  plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+  plot.background = element_rect(colour = "white"))
+
+source("R/functions/helper.R")
+```
+
+```{r}
+## Read in data
+data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR.csv", stringsAsFactors = F)
+mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
+
+str(data)
+
+## We don't need prior_temp
+data %<>% select(-prior_temp)
+```
+
+## Model selection of random effects structure
+We fitted four different models with different combination of random effects to determine what is the best model structure for data analysis.
+Based on previous study presented in Chapter X (Kar et al 2020), we found that individuals displayed consistent variation in their response to acute temperature change. We also found that within individual variation as well as measurement error varied across temperatures. We therefore included random linear slope for individual identity and the measurement error term. In some models, we also assumed individual variation and measurement error were constant by included only a random intercept for these terms. In one model, we allowed residuals which includes within individual variation to vary with temperature. 
+
+```{r, eval = FALSE, cache = TRUE}
+## Tabulatng it nicely
+#Read in models
+mod.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.2.obj") #Homo resids linear slopes for all
+mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME and series
+# mod.4.mm.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.mm.obj") 
+mod.5.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.5.obj") #Intercept ID, slopes for ME and SampSessions
+mod.6.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.6.obj") #Intercept for ID, ME and slope for session
+
+#Compute their IC
+waic_mod.2.obj <- waic(mod.2.obj)
+loo_mod.2.obj <- loo(mod.2.obj)
+
+# waic_mod.3.obj <- waic(mod.3.obj)
+# loo_mod.3.obj <- loo(mod.3.obj)
+
+waic_mod.4.obj <- waic(mod.4.obj)
+loo_mod.4.obj <- loo(mod.4.obj)
+# loo_mod.4.mm.obj <- loo(mod.4.mm.obj, moment_match = T)
+# loo_mod.4.obj_mm <- loo_moment_match(x = mod.4.mm.obj, loo = loo_mod.4.mm.obj) #Submitted amd gonna test it out...nope
+
+waic_mod.5.obj <- waic(mod.5.obj)
+loo_mod.5.obj <- loo(mod.5.obj)
+
+waic_mod.6.obj <- waic(mod.6.obj)
+loo_mod.6.obj <- loo(mod.6.obj)
+
+#Creating table
+RE_compare_WAIC <- data.frame(matrix(nrow = 4, ncol = 4))
+colnames(RE_compare_WAIC) <- c("Model", "WAIC value", "ELPD Diff", "SE Diff")
+
+#Fill in Model str
+RE_compare_WAIC[1,1] <- c("(1 + temp | id) + (1 + temp | series_temp)") #mod.2.obj
+RE_compare_WAIC[2,1] <- c("(1 | id) + (1 + temp | series_temp)") #mod.5.obj
+RE_compare_WAIC[3,1] <- c("(1 + temp | id) + (1 | series_temp)") #mod.4.obj
+RE_compare_WAIC[4,1] <- c("(1 + temp + temp_I2 | id) + (1 + temp + temp_I2 | series_temp)") #mod.6.obj
+#RE_compare_WAIC[5,1] <- c("(1 + temp | id) + (1 + temp | series_temp), sigma ~ temp") #mod.3.obj
+
+#Fill in WAIC estimate
+RE_compare_WAIC[1,2] <-  waic_mod.2.obj$estimates[3,1] %>% round(2) #mod.2.obj
+RE_compare_WAIC[2,2] <-  waic_mod.5.obj$estimates[3,1] %>% round(2) #mod.5.obj
+RE_compare_WAIC[3,2] <-  waic_mod.4.obj$estimates[3,1] %>% round(2) #mod.4.obj
+RE_compare_WAIC[4,2] <-  waic_mod.6.obj$estimates[3,1] %>% round(2) #mod.6.obj
+#RE_compare_WAIC[5,2] <-  waic_mod.3.obj$estimates[3,1] %>% round(2) #mod.3.obj
+
+#Fill in ELPD of diff estimate
+WAIC_compare <- loo_compare(waic_mod.4.obj, waic_mod.5.obj, waic_mod.2.obj, waic_mod.6.obj)
+
+#Rerrange by WAIC values
+RE_compare_WAIC %<>% arrange(`WAIC value`)
+
+RE_compare_WAIC[1,3] <-  WAIC_compare[1,1] %>% round(2) 
+RE_compare_WAIC[2,3] <-  WAIC_compare[2,1] %>% round(2) 
+RE_compare_WAIC[3,3] <-  WAIC_compare[3,1] %>% round(2) 
+RE_compare_WAIC[4,3] <-  WAIC_compare[4,1] %>% round(2) 
+#RE_compare_WAIC[5,3] <-  WAIC_compare[5,1] %>% round(2) 
+  
+#Fill in SE of diff estimate
+RE_compare_WAIC[1,4] <-  WAIC_compare[1,2] %>% round(2) 
+RE_compare_WAIC[2,4] <-  WAIC_compare[2,2] %>% round(2) 
+RE_compare_WAIC[3,4] <-  WAIC_compare[3,2] %>% round(2) 
+RE_compare_WAIC[4,4] <-  WAIC_compare[4,2] %>% round(2) 
+#RE_compare_WAIC[5,4] <-  WAIC_compare[5,2] %>% round(2) 
+
+#Tabulating LOO values
+RE_compare_LOO <- data.frame(matrix(nrow = 4, ncol = 4))
+colnames(RE_compare_LOO) <- c("Model", "LOO value", "ELPD Diff", "SE Diff")
+
+#Fill in Model str
+RE_compare_LOO[1,1] <- c("(1 | id) + (1 + temp | series_temp)") #mod.5.obj
+RE_compare_LOO[2,1] <- c("(1 + temp | id) + (1 + temp | series_temp)") #mod.2.obj 
+RE_compare_LOO[3,1] <- c("(1 + temp | id) + (1 | series_temp)") #mod.4.obj
+RE_compare_LOO[4,1] <- c("(1 + temp + temp_I2 | id) + (1 + temp + temp_I2 | series_temp)") #mod.6.obj
+#RE_compare_LOO[5,1] <- c("(1 + temp | id) + (1 + temp | series_temp), sigma ~ temp") #mod.3.obj
+
+#Fill in LOO estimate
+RE_compare_LOO[1,2] <-  loo_mod.5.obj$estimates[3,1] %>% round(2) #mod.5.obj
+RE_compare_LOO[2,2] <-  loo_mod.2.obj$estimates[3,1] %>% round(2) #mod.2.obj
+RE_compare_LOO[3,2] <-  loo_mod.4.obj$estimates[3,1] %>% round(2) #mod.4.obj
+RE_compare_LOO[4,2] <-  loo_mod.6.obj$estimates[3,1] %>% round(2) #mod.6.obj
+#RE_compare_LOO[5,2] <-  loo_mod.3.obj$estimates[3,1] %>% round(2) #mod.3.obj
+
+#Fill in ELPD of diff estimate
+LOO_compare <- loo_compare(loo_mod.4.obj, loo_mod.5.obj, loo_mod.2.obj, loo_mod.6.obj)
+
+#Rerrange by WAIC values
+RE_compare_LOO %<>% arrange(`LOO value`)
+
+RE_compare_LOO[1,3] <-  LOO_compare[1,1] %>% round(2) #mod.3.obj
+RE_compare_LOO[2,3] <-  LOO_compare[2,1] %>% round(2) #mod.5.obj
+RE_compare_LOO[3,3] <-  LOO_compare[3,1] %>% round(2) #mod.4.obj
+RE_compare_LOO[4,3] <-  LOO_compare[4,1] %>% round(2) #mod.2.obj
+#RE_compare_LOO[5,3] <-  LOO_compare[5,1] %>% round(2) #mod.6.obj
+  
+#Fill in SE of diff estimate
+RE_compare_LOO[1,4] <-  LOO_compare[1,2] %>% round(2) #mod.3.obj
+RE_compare_LOO[2,4] <-  LOO_compare[2,2] %>% round(2) #mod.5.obj
+RE_compare_LOO[3,4] <-  LOO_compare[3,2] %>% round(2) #mod.4.obj
+RE_compare_LOO[4,4] <-  LOO_compare[4,2] %>% round(2) #mod.2.obj
+#RE_compare_LOO[5,4] <-  LOO_compare[5,2] %>% round(2) #mod.6.obj
+```
+
+```{r, eval = FALSE, include = TRUE}
+pander(RE_compare_WAIC,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table SX Comparisons of WAIC values for four models with different combinations of random effects structures for individual variance and measurement error")
+
+pander(RE_compare_LOO,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table SX Comparisons of LOO values for four models with different combinations of random effects structures for individual variance and measurement error")
+```
+
+## Heterogenous variance 
+```{r}
+mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME HOMO
+mod.4.het.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.het.obj") #Intercept ME Hetero
+
+#Add IC
+waic_mod.4.obj<- waic(mod.4.obj)
+loo_mod.4.obj <- loo(mod.4.obj)
+
+waic_mod.4.het.obj <- waic(mod.4.het.obj)
+loo_mod.4.het.obj <- loo(mod.4.het.obj)
+
+#Compare
+WAIC_compare_resid <- loo_compare(waic_mod.4.obj, waic_mod.4.het.obj)
+LOO_compare_resid  <- loo_compare(loo_mod.4.obj, waic_mod.4.het.obj)
+
+#Creating table
+Resid_compare_WAIC <- data.frame(matrix(nrow = 4, ncol = 5))
+colnames(Resid_compare_WAIC) <- c("Model", "IC type",  "IC value", "ELPD Diff", "SE Diff")
+Resid_compare_WAIC$Model <- rep(c("Homogenous residuals", "Heterogennous residuals"), 2)
+Resid_compare_WAIC$`IC type` <- rep(c("WAIC", "LOO"), each = 2)
+
+#WAIC
+Resid_compare_WAIC[1,3] <- waic_mod.4.obj$estimates[3,1] %>% round(2)
+Resid_compare_WAIC[2,3] <- waic_mod.4.het.obj$estimates[3,1] %>% round(2)
+
+#LOO
+Resid_compare_WAIC[3,3] <- loo_mod.4.obj$estimates[3,1] %>% round(2)
+Resid_compare_WAIC[4,3] <- loo_mod.4.het.obj$estimates[3,1] %>% round(2)
+
+#ELPD and SE
+#WAIC
+Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,1] %>% round(2)
+Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,1] %>% round(2)
+
+Resid_compare_WAIC[1,5] <- WAIC_compare_resid[1,2] %>% round(2)
+Resid_compare_WAIC[2,5] <- WAIC_compare_resid[2,2] %>% round(2)
+
+#LOO
+Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,1] %>% round(2)
+Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,1] %>% round(2)
+
+Resid_compare_WAIC[1,5] <- WAIC_compare_resid[1,2] %>% round(2)
+Resid_compare_WAIC[2,5] <- WAIC_compare_resid[2,2] %>% round(2)
+```
+
+```{r, eval = TRUE}
+pander(Resid_compare_WAIC,
+       justify = "lcccc",
+       #split.cell = 80,
+       caption = "Table SX Comparisons of LOO values for homogenous and hetergenous residuals")
+```
+
+
+```{r}
+#Fixed effects model selection
+cc_mod.2.obj <- readRDS("output/rds/cc_mod.2.obj")
+cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
+
+#Add IC
+waic_cc_mod.2.obj <- waic(cc_mod.2.obj)
+loo_cc_mod.2.obj <- loo(cc_mod.2.obj)
+
+waic_cc_mod.3.obj <- waic(cc_mod.3.obj)
+loo_cc_mod.3.obj <- loo(cc_mod.3.obj)
+
+loo_compare(waic_cc_mod.2.obj, waic_cc_mod.3.obj)
+loo_compare(loo_cc_mod.2.obj, loo_cc_mod.3.obj)
+```
+
+```{r}
+#Tabulate the model coefficients for CC model
+#Read in model
+cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
+
+summary(cc_mod.3.obj)
+
+#Extract entire posterior
+cc_mod.3_post <- posterior_samples(cc_mod.3.obj)
+#Names of each column
+colnames(cc_mod.3_post)[1:11]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_mod.3_coeffs <- cc_mod.3_post[1:11] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_mod.3_coeffs <- as.data.frame(cc_mod.3_coeffs)
+cc_mod.3_coeffs$Parameter <- c(rownames(cc_mod.3_coeffs))
+rownames(cc_mod.3_coeffs) <- NULL 
+cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
+```
+
+```{r}
+pander(cc_mod.3_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
+```
+
+```{r}
+#Tabulate the model coefficients for imp model
+#Read in model
+mod.imp.3.obj <- readRDS("output/rds/mod.imp.3")
+
+summary(mod.imp.3.obj)
+
+#Extract entire posterior
+mod.imp.3_post <- posterior_samples(mod.imp.3.obj)
+#Names of each column
+colnames(mod.imp.3_post)[1:14]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+mod.imp.3_coeffs <- mod.imp.3_post[1:14] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+mod.imp.3_coeffs <- mod.imp.3_coeffs[,c(1,3,4)]
+#Rownames as col
+mod.imp.3_coeffs <- as.data.frame(mod.imp.3_coeffs)
+mod.imp.3_coeffs$Parameter <- c(rownames(mod.imp.3_coeffs))
+rownames(mod.imp.3_coeffs) <- NULL 
+mod.imp.3_coeffs <- mod.imp.3_coeffs[,c(4,1:3)]
+```
+
+```{r}
+cc_mod.3.obj <- readRDS("output/rds/cc_mod.3.obj")
+
+#Make a figure from model predictions using cc_mod.2.obj
+cc_mod.3.imp.post <- posterior_samples(cc_mod.3.obj) 
+names(cc_mod.3.imp.post)[1:12]
+
+#Setting up predictive data
+new_data <- mi_data %>% distinct(id, samp_session, temp, treatment)
+
+#Specificying the posterior
+post = cc_mod.3.imp.post
+
+#Try fucking pmap    
+model_predictions <- bind_rows(pmap(new_data, mr_pred))
+str(model_predictions)
+rownames(model_predictions) <- NULL
+
+#Check it
+model_predictions %>% filter(id == "ld0449") #Fantastic
+
+#Change ID to character
+model_predictions %<>%  mutate(id = as.character(id))
+
+#Plot it
+cold_ids <- model_predictions %>% filter(treatment == 23) %>% pull(id) %>% unique()
+hot_ids <- model_predictions %>% filter(treatment == 29) %>% pull(id) %>% unique()
+
+set.seed(7)
+subset_cold <- sample(cold_ids, 10 , replace = F)
+
+set.seed(7)
+subset_hot <- sample(hot_ids, 10 , replace = F)
+
+#Filter out the subset IDS
+model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
+  ggplot(aes(x = temp, y = mean_lnmr)) + 
+  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.5) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position=position_dodge(width = 0.3)) +
+  geom_point(alpha = 0.2) + 
+  facet_wrap(~samp_session) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 per minute"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+
+```
+
+```{r, include = TRUE}
+#Read in model
+mod.imp.3.obj <- readRDS("output/rds/mod.imp.3")
+
+#Make a figure from model predictions using mod.imp.3.obj
+mod.3.imp.post <- posterior_samples(mod.imp.3.obj) 
+names(mod.3.imp.post)[1:14]
+names(mod.3.imp.post)[120:150]
+
+#Specificying the posterior
+post = mod.3.imp.post
+
+#Try pmap
+imp_model_predictions <- bind_rows(pmap(new_data, imp_mr_pred))
+str(imp_model_predictions)
+rownames(imp_model_predictions) <- NULL
+
+#Check it
+imp_model_predictions %>% filter(id == "ld0449" & samp_session == 1) #Fantastic
+model_predictions %>% filter(id == "ld0449" & samp_session == 1)
+
+#Filter out the subset IDS
+imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
+  ggplot(aes(x = temp, y = mean_lnmr)) + 
+  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.5) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position=position_dodge(width = 0.3)) +
+  geom_point(alpha = 0.2) + 
+  facet_wrap(~samp_session) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 per minute"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+```
+
+```{r, include = TRUE, fig.height = 9.5, fig.width = 6.7}
+#Treatment differences in temperature specific repeatabilty
+# Read in models
+cc_cold.2.obj <- readRDS("output/rds/cc_cold.2.obj")
+cc_hot.2.obj <- readRDS("output/rds/cc_hot.2.obj")
+
+#Poster names
+names(posterior_samples(cc_cold.2.obj))[1:10]
+
+#Function to calculate temperature specific repeatability
+brms_rpt <- function(x, model){
+    #Strings to search for relevant (co)variance components
+    id_vars <- paste0("sd_","id")
+    id_cors <- paste0("cor_","id")
+    
+    #Extract the relevant sd/(co)variance components for ID 
+    SD <- posterior_samples(model, id_vars)
+    COR <- posterior_samples(model, id_cors) 
+    V <- SD^2
+    names(V) <- str_replace(names(V), "sd", "var")
+    #Convert correlation to covariance #Cor(1,2) * (SD1 X SD2) = Cov(1,2)
+    COV <- cbind(COR[1] * (SD[1] * SD[2]))
+    names(COV) <- str_replace(names(COV), "cor", "cov")
+    
+    # Now, add everything together while accounting for covariances and their respective powers
+    V_id <- V[1] + (x^2)*V[2] +  #The V of the intercept and linear slope
+      2*x*COV[1]    # Covariance of intercept and linear slope
+    
+    #Samp session variance
+    #Strings to search for relevant (co)variance components
+    ss_vars <- paste0("sd_samp")
+    
+    #Extract the relevant sd/(co)variance components 
+    SD_SS <- posterior_samples(model, ss_vars)
+    
+    #Squaring SD to get the variance
+    V_SS <- (SD_SS)^2 
+    
+    #Residuals
+    SD_e <- posterior_samples(model, "sigma") # Extract the variance of intercept, linear slope
+    
+    #Squaring SD to get the variance
+    V_resid <- (SD_e)^2 
+    
+    #Calculate total phenotypic variance
+    VtotalP <- V_id + V_SS + V_resid 
+    
+    #    # Calculate repeatability (proportion of variance explained by consistent ID variance)
+    R <- V_id  / VtotalP
+    
+    df <- data.frame(temp = x,
+                     rpt = posterior_summary(R)[1] %>% round(2),
+                     Lower =  posterior_summary(R)[3] %>% round(2),
+                     Upper =  posterior_summary(R)[4] %>% round(2))
+
+    return(df)
+}
+
+#map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
+
+cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj)))
+cold_rpt %<>%  mutate(treatment = "cold")
+
+hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj)))
+hot_rpt %<>%  mutate(treatment = "hot")
+
+rpt_data <- bind_rows(cold_rpt, hot_rpt)
+
+#plot this
+ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
+  ylim(c(0, 0.4)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+
+```
+
+```{r}
+#Overall repeatability
+overall_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_mod.3.obj)))
+```
+
+## How does developmental temperature affect temperature specific repeatability
+
+Lizards born in cold developmental temperatures had on higher repeatabilty compared to lizards from the hot developmental temeprature however, credible intervals overlap partially (Fig. XX, Table XX). Across both treatment grounts, repeatability did not change across acute temperatures (Fig.2, Table XX).  
