@@ -280,7 +280,7 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
 ```
 
 ```{r, eval = TRUE}
-#Treatment differences in temperature specific repeatabilty
+#Treatment differences in temperature specific repeatabilty using complete case models
 # Read in models
 cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
 cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
@@ -299,6 +299,15 @@ hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj))
 hot_rpt %<>%  mutate(treatment = "hot")
 
 rpt_data <- bind_rows(cold_rpt, hot_rpt)
+
+#Posterior mode
+cold_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj, type = "mode")))
+cold_rpt_mode %<>%  mutate(treatment = "cold")
+
+hot_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj, type = "mode")))
+hot_rpt_mode %<>%  mutate(treatment = "hot")
+
+rpt_data_mode <- bind_rows(cold_rpt_mode, hot_rpt_mode)
 ```
 
 ```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
@@ -314,6 +323,109 @@ ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = trea
   theme_bw() +
   my_theme + 
   theme(legend.position = "none") 
+```
+
+```{r}
+cc_a <- ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
+  ylim(c(0, 0.4)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+
+cc_b <- ggplot(rpt_data_mode, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
+  ylim(c(0, 0.4)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+
+plot_layout(cc_a / cc_b)
+```
+
+
+```{r, eval = TRUE}
+#Treatment differences in temperature specific repeatabilty using imputation models
+# Read in models
+cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3")
+hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3")
+
+#Poster names
+names(posterior_samples(cold_imp.obj))[1:10]
+
+#Temp define:
+temp <- seq(24,34, by = 2)
+#map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
+
+imp_cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = cold_imp.obj)))
+imp_cold_rpt %<>%  mutate(treatment = "cold")
+
+imp_hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = hot_imp.obj)))
+imp_hot_rpt %<>%  mutate(treatment = "hot")
+
+imp_rpt_data <- bind_rows(imp_cold_rpt, imp_hot_rpt)
+
+#Posterior mode
+imp_cold_mode <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = cold_imp.obj, type = "mode")))
+imp_cold_mode %<>%  mutate(treatment = "cold")
+
+imp_hot_mode <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = hot_imp.obj, type = "mode")))
+imp_hot_mode %<>%  mutate(treatment = "hot")
+
+imp_rpt_mode <- bind_rows(imp_cold_mode, imp_hot_mode)
+```
+
+```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
+#plot this
+ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
+  ylim(c(0, 0.26)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+```
+
+```{r}
+imp_a <- ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
+  ylim(c(0, 0.26)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+
+imp_b <- ggplot(imp_rpt_mode, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
+  ylim(c(0, 0.26)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+
+plot_layout(imp_a / imp_b)
 ```
 
 ## How does developmental temperature affect temperature specific repeatability
