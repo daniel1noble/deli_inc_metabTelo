@@ -3,10 +3,10 @@ title: "ESM"
 author: "Fonti Kar"
 date: "`r Sys.Date()`"
 output:
-  html_document:
-    df_print: paged
   word_document:
     reference_docx: Style_guide.docx
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -97,7 +97,29 @@ colnames(cc_mod.1_post)[1:11]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cc_mod.1_coeffs <- cc_mod.1_post[1:11] %>% posterior_summary() %>% round(3) 
+cc_mod.1_fixed <- cc_mod.1_post[1:5] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cc_mod.1_sd <- posterior_samples(cc_mod.1.obj, "sd_")
+cc_mod.1_var <- cc_mod.1_sd^2 
+names(cc_mod.1_var) <- str_replace(names(cc_mod.1_var), "sd", "var")
+cc_mod.1_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cc_mod.1_cov <- posterior_samples(cc_mod.1.obj, "cor_") * (cc_mod.1_sd[,1] * cc_mod.1_sd[,2])
+names(cc_mod.1_cov) <- str_replace(names(cc_mod.1_cov), "cor", "cov")
+
+cc_mod.1_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cc_mod.1_residuals <- ( posterior_samples(cc_mod.1.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cc_mod.1_coeffs <- rbind(cc_mod.1_fixed,
+                         cc_mod.1_var %>% posterior_summary() %>% round(3),
+                         cc_mod.1_cov %>% posterior_summary() %>% signif(3),
+                         cc_mod.1_residuals)
+
 #Excluding est. error
 cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -114,7 +136,29 @@ colnames(cc_mod.3_post)[1:12]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cc_mod.3_coeffs <- cc_mod.3_post[1:12] %>% posterior_summary() %>% round(3) 
+cc_mod.3_fixed <- cc_mod.3_post[1:6] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cc_mod.3_sd <- posterior_samples(cc_mod.3.obj, "sd_")
+cc_mod.3_var <- cc_mod.3_sd^2 
+names(cc_mod.3_var) <- str_replace(names(cc_mod.3_var), "sd", "var")
+cc_mod.3_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cc_mod.3_cov <- posterior_samples(cc_mod.3.obj, "cor_") * (cc_mod.3_sd[,1] * cc_mod.3_sd[,2])
+names(cc_mod.3_cov) <- str_replace(names(cc_mod.3_cov), "cor", "cov")
+
+cc_mod.3_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cc_mod.3_residuals <- ( posterior_samples(cc_mod.3.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cc_mod.3_coeffs <- rbind(cc_mod.3_fixed,
+                         cc_mod.3_var %>% posterior_summary() %>% round(3),
+                         cc_mod.3_cov %>% posterior_summary() %>% signif(3),
+                         cc_mod.3_residuals)
+
 #Excluding est. error
 cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -124,7 +168,7 @@ rownames(cc_mod.3_coeffs) <- NULL
 cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
 ```
 
-```{r}
+```{r, eval = TRUE}
 #Tabulating the imputation model with main effects only
 #Read in model
 mod.imp.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.1")
@@ -136,7 +180,29 @@ colnames(mod.imp.1_post)[1:15]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-mod.imp.1_coeffs <- mod.imp.1_post[1:15] %>% posterior_summary() %>% round(3) 
+mod.imp.1_fixed <- mod.imp.1_post[1:6] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+mod.imp.1_sd <- posterior_samples(mod.imp.1.obj, "sd_")
+mod.imp.1_var <- mod.imp.1_sd^2 
+names(mod.imp.1_var) <- str_replace(names(mod.imp.1_var), "sd", "var")
+mod.imp.1_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+mod.imp.1_cov <- posterior_samples(mod.imp.1.obj, "cor_") * (mod.imp.1_sd[,1] * mod.imp.1_sd[,2])
+names(mod.imp.1_cov) <- str_replace(names(mod.imp.1_cov), "cor", "cov")
+
+mod.imp.1_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+mod.imp.1_residuals <- ( posterior_samples(mod.imp.1.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+mod.imp.1_coeffs <- rbind(mod.imp.1_fixed,
+                         mod.imp.1_var %>% posterior_summary() %>% round(3),
+                         mod.imp.1_cov %>% posterior_summary() %>% signif(3),
+                         mod.imp.1_residuals)
+
 #Excluding est. error
 mod.imp.1_coeffs <- mod.imp.1_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -209,6 +275,7 @@ model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %
   facet_wrap(~samp_session) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-6.5, -5.5)) + 
   labs(x = "Temperature",
        y = TeX("log VCO_2 per minute"),
        #title = "Relative contribution of variance over age",
@@ -289,7 +356,29 @@ colnames(cold_imp.post)[1:12]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cold_imp_coeffs <- cold_imp.post[1:12] %>% posterior_summary() %>% round(3) 
+cold_imp_fixed <- cold_imp.post[1:5] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cold_imp_sd <- posterior_samples(cold_imp.obj, "sd_")
+cold_imp_var <- cold_imp_sd^2 
+names(cold_imp_var) <- str_replace(names(cold_imp_var), "sd", "var")
+cold_imp_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cold_imp_cov <- posterior_samples(cold_imp.obj, "cor_") * (cold_imp_sd[,1] * cold_imp_sd[,2])
+names(cold_imp_cov) <- str_replace(names(cold_imp_cov), "cor", "cov")
+
+cold_imp_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cold_imp_residuals <- ( posterior_samples(cold_imp.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cold_imp_coeffs <- rbind(cold_imp_fixed,
+                         cold_imp_var %>% posterior_summary() %>% round(3),
+                         cold_imp_cov %>% posterior_summary() %>% signif(3),
+                         cold_imp_residuals)
+
 #Excluding est. error
 cold_imp_coeffs <- cold_imp_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -305,7 +394,28 @@ colnames(hot_imp.post)[1:12]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-hot_imp_coeffs <- hot_imp.post[1:12] %>% posterior_summary() %>% round(3) 
+hot_imp_fixed <- hot_imp.post[1:5] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+hot_imp_sd <- posterior_samples(hot_imp.obj, "sd_")
+hot_imp_var <- hot_imp_sd^2 
+names(hot_imp_var) <- str_replace(names(hot_imp_var), "sd", "var")
+hot_imp_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+hot_imp_cov <- posterior_samples(hot_imp.obj, "cor_") * (hot_imp_sd[,1] * hot_imp_sd[,2])
+names(hot_imp_cov) <- str_replace(names(hot_imp_cov), "cor", "cov")
+
+hot_imp_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+hot_imp_residuals <- ( posterior_samples(hot_imp.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+hot_imp_coeffs <- rbind(hot_imp_fixed,
+                         hot_imp_var %>% posterior_summary() %>% round(3),
+                         hot_imp_cov %>% posterior_summary() %>% signif(3),
+                         hot_imp_residuals)
 #Excluding est. error
 hot_imp_coeffs <- hot_imp_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -334,45 +444,87 @@ cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/c
 cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
 
 #Extract entire posterior
-cc_cold_imp.post <- posterior_samples(cc_cold.2.obj)
+cc_cold.post <- posterior_samples(cc_cold.2.obj)
 #Names of each column
-colnames(cc_cold_imp.post)[1:10]
+colnames(cc_cold.post)[1:10]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cc_cold_imp_coeffs <- cc_cold_imp.post[1:10] %>% posterior_summary() %>% round(3) 
+cc_cold_fixed <- cc_cold.post[1:4] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cc_cold_sd <- posterior_samples(cc_cold.2.obj, "sd_")
+cc_cold_var <- cc_cold_sd^2 
+names(cc_cold_var) <- str_replace(names(cc_cold_var), "sd", "var")
+cc_cold_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cc_cold_cov <- posterior_samples(cc_cold.2.obj, "cor_") * (cc_cold_sd[,1] * cc_cold_sd[,2])
+names(cc_cold_cov) <- str_replace(names(cc_cold_cov), "cor", "cov")
+
+cc_cold_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cc_cold_residuals <- ( posterior_samples(cc_cold.2.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cc_cold_coeffs <- rbind(cc_cold_fixed,
+                         cc_cold_var %>% posterior_summary() %>% round(3),
+                         cc_cold_cov %>% posterior_summary() %>% signif(3),
+                         cc_cold_residuals)
+
 #Excluding est. error
-cc_cold_imp_coeffs <- cc_cold_imp_coeffs[,c(1,3,4)]
+cc_cold_coeffs <- cc_cold_coeffs[,c(1,3,4)]
 #Rownames as col
-cc_cold_imp_coeffs <- as.data.frame(cc_cold_imp_coeffs)
-cc_cold_imp_coeffs$Parameter <- c(rownames(cc_cold_imp_coeffs))
-rownames(cc_cold_imp_coeffs) <- NULL 
-cc_cold_imp_coeffs <- cc_cold_imp_coeffs[,c(4,1:3)]
+cc_cold_coeffs <- as.data.frame(cc_cold_coeffs)
+cc_cold_coeffs$Parameter <- c(rownames(cc_cold_coeffs))
+rownames(cc_cold_coeffs) <- NULL 
+cc_cold_coeffs <- cc_cold_coeffs[,c(4,1:3)]
 
 #Extract entire posterior
-cc_hot_imp.post <- posterior_samples(cc_hot.2.obj)
+cc_hot.post <- posterior_samples(cc_hot.2.obj)
 #Names of each column
-colnames(cc_hot_imp.post)[1:10]
+colnames(cc_hot.post)[1:10]
 
 #Combining the coefficients from the final model
-#Getting the fixed effects
-cc_hot_imp_coeffs <- cc_hot_imp.post[1:10] %>% posterior_summary() %>% round(3) 
+cc_hot_fixed <- cc_hot.post[1:4] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cc_hot_sd <- posterior_samples(cc_hot.2.obj, "sd_")
+cc_hot_var <- cc_hot_sd^2 
+names(cc_hot_var) <- str_replace(names(cc_hot_var), "sd", "var")
+cc_hot_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cc_hot_cov <- posterior_samples(cc_hot.2.obj, "cor_") * (cc_hot_sd[,1] * cc_hot_sd[,2])
+names(cc_hot_cov) <- str_replace(names(cc_hot_cov), "cor", "cov")
+
+cc_hot_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cc_hot_residuals <- ( posterior_samples(cc_hot.2.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cc_hot_coeffs <- rbind(cc_hot_fixed,
+                         cc_hot_var %>% posterior_summary() %>% round(3),
+                         cc_hot_cov %>% posterior_summary() %>% signif(3),
+                         cc_hot_residuals)
 #Excluding est. error
-cc_hot_imp_coeffs <- cc_hot_imp_coeffs[,c(1,3,4)]
+cc_hot_coeffs <- cc_hot_coeffs[,c(1,3,4)]
 #Rownames as col
-cc_hot_imp_coeffs <- as.data.frame(cc_hot_imp_coeffs)
-cc_hot_imp_coeffs$Parameter <- c(rownames(cc_hot_imp_coeffs))
-rownames(cc_hot_imp_coeffs) <- NULL 
-cc_hot_imp_coeffs <- cc_hot_imp_coeffs[,c(4,1:3)]
+cc_hot_coeffs <- as.data.frame(cc_hot_coeffs)
+cc_hot_coeffs$Parameter <- c(rownames(cc_hot_coeffs))
+rownames(cc_hot_coeffs) <- NULL 
+cc_hot_coeffs <- cc_hot_coeffs[,c(4,1:3)]
 ```
 
 ```{r, eval = TRUE, include = TRUE}
-pander(cc_cold_imp_coeffs,
+pander(cc_cold_coeffs,
        justify = "lccc",
        #split.cell = 80,
        caption = "Table S7 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1897")
 
-pander(cc_hot_imp_coeffs,
+pander(cc_hot_coeffs,
        justify = "lccc",
        #split.cell = 80,
        caption = "Table S9 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. This imputation model used a complete case dataset of lizards in the hot developmental temperature only n = 25, n_obs = 1921")
@@ -391,7 +543,29 @@ colnames(cold_imp.4.post)[1:13]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cold_imp.4_coeffs <- cold_imp.4.post[1:13] %>% posterior_summary() %>% round(3) 
+cold_imp.4_fixed <- cold_imp.4.post[1:5] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cold_imp.4_sd <- posterior_samples(cold.mod.imp.4, "sd_")
+cold_imp.4_var <- cold_imp.4_sd^2 
+names(cold_imp.4_var) <- str_replace(names(cold_imp.4_var), "sd", "var")
+cold_imp.4_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cold_imp.4_cov <- bind_cols(posterior_samples(cold.mod.imp.4, "cor_")[,1] * (cold_imp.4_sd[,1] * cold_imp.4_sd[,2]),
+                            posterior_samples(cold.mod.imp.4, "cor_")[,2] * (cold_imp.4_sd[,3] * cold_imp.4_sd[,4]))
+names(cold_imp.4_cov) <- str_replace(names(posterior_samples(cold.mod.imp.4, "cor_")), "cor", "cov")
+cold_imp.4_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cold_imp.4_residuals <- ( posterior_samples(cold.mod.imp.4, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cold_imp.4_coeffs <- rbind(cold_imp.4_fixed,
+                         cold_imp.4_var %>% posterior_summary() %>% round(3),
+                         cold_imp.4_cov %>% posterior_summary() %>% signif(3),
+                         cold_imp.4_residuals)
+
 #Excluding est. error
 cold_imp.4_coeffs <- cold_imp.4_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -407,7 +581,29 @@ colnames(hot_imp.4.post)[1:13]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-hot_imp.4_coeffs <- hot_imp.4.post[1:12] %>% posterior_summary() %>% round(3) 
+hot_imp.4_fixed <- hot_imp.4.post[1:5] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+hot_imp.4_sd <- posterior_samples(hot.mod.imp.4, "sd_")
+hot_imp.4_var <- hot_imp.4_sd^2 
+names(hot_imp.4_var) <- str_replace(names(hot_imp.4_var), "sd", "var")
+hot_imp.4_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+hot_imp.4_cov <- bind_cols(posterior_samples(hot.mod.imp.4, "cor_")[,1] * (hot_imp.4_sd[,1] * hot_imp.4_sd[,2]),
+                            posterior_samples(hot.mod.imp.4, "cor_")[,2] * (hot_imp.4_sd[,3] * hot_imp.4_sd[,4]))
+names(hot_imp.4_cov) <- str_replace(names(posterior_samples(hot.mod.imp.4, "cor_")), "cor", "cov")
+hot_imp.4_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+hot_imp.4_residuals <- ( posterior_samples(hot.mod.imp.4, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+hot_imp.4_coeffs <- rbind(hot_imp.4_fixed,
+                         hot_imp.4_var %>% posterior_summary() %>% round(3),
+                         hot_imp.4_cov %>% posterior_summary() %>% signif(3),
+                         hot_imp.4_residuals)
+
 #Excluding est. error
 hot_imp.4_coeffs <- hot_imp.4_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -446,45 +642,87 @@ cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/c
 cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.4.obj")
 
 #Extract entire posterior
-cc_cold_imp.4.post <- posterior_samples(cc_cold.4.obj)
+cc_cold.4.post <- posterior_samples(cc_cold.4.obj)
 #Names of each column
-colnames(cc_cold_imp.4.post)[1:13]
+colnames(cc_cold.4.post)[1:13]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cc_cold_imp.4_coeffs <- cc_cold_imp.4.post[1:13] %>% posterior_summary() %>% round(3) 
+cc_cold.4_fixed <- cc_cold.4.post[1:4] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cc_cold.4_sd <- posterior_samples(cc_cold.4.obj, "sd_")
+cc_cold.4_var <- cc_cold.4_sd^2 
+names(cc_cold.4_var) <- str_replace(names(cc_cold.4_var), "sd", "var")
+cc_cold.4_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cc_cold.4_cov <- bind_cols(posterior_samples(cc_cold.4.obj, "cor_")[,1] * (cc_cold.4_sd[,1] * cc_cold.4_sd[,2]),
+                            posterior_samples(cc_cold.4.obj, "cor_")[,2] * (cc_cold.4_sd[,3] * cc_cold.4_sd[,4]))
+names(cc_cold.4_cov) <- str_replace(names(posterior_samples(cc_cold.4.obj, "cor_")), "cor", "cov")
+cc_cold.4_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cc_cold.4_residuals <- ( posterior_samples(cc_cold.4.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cc_cold.4_coeffs <- rbind(cc_cold.4_fixed,
+                         cc_cold.4_var %>% posterior_summary() %>% round(3),
+                         cc_cold.4_cov %>% posterior_summary() %>% signif(3),
+                         cc_cold.4_residuals)
 #Excluding est. error
-cc_cold_imp.4_coeffs <- cc_cold_imp.4_coeffs[,c(1,3,4)]
+cc_cold.4_coeffs <- cc_cold.4_coeffs[,c(1,3,4)]
 #Rownames as col
-cc_cold_imp.4_coeffs <- as.data.frame(cc_cold_imp.4_coeffs)
-cc_cold_imp.4_coeffs$Parameter <- c(rownames(cc_cold_imp.4_coeffs))
-rownames(cc_cold_imp.4_coeffs) <- NULL 
-cc_cold_imp.4_coeffs <- cc_cold_imp.4_coeffs[,c(4,1:3)]
+cc_cold.4_coeffs <- as.data.frame(cc_cold.4_coeffs)
+cc_cold.4_coeffs$Parameter <- c(rownames(cc_cold.4_coeffs))
+rownames(cc_cold.4_coeffs) <- NULL 
+cc_cold.4_coeffs <- cc_cold.4_coeffs[,c(4,1:3)]
 
 #Extract entire posterior
-cc_hot_imp.4.post <- posterior_samples(cc_hot.4.obj)
+cc_hot.4.post <- posterior_samples(cc_hot.4.obj)
 #Names of each column
-colnames(cc_hot_imp.4.post)[1:13]
+colnames(cc_hot.4.post)[1:13]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-cc_hot_imp.4_coeffs <- cc_hot_imp.4.post[1:12] %>% posterior_summary() %>% round(3) 
+cc_hot.4_fixed <- cc_hot.4.post[1:4] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+cc_hot.4_sd <- posterior_samples(cc_hot.4.obj, "sd_")
+cc_hot.4_var <- cc_hot.4_sd^2 
+names(cc_hot.4_var) <- str_replace(names(cc_hot.4_var), "sd", "var")
+cc_hot.4_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+cc_hot.4_cov <- bind_cols(posterior_samples(cc_hot.4.obj, "cor_")[,1] * (cc_hot.4_sd[,1] * cc_hot.4_sd[,2]),
+                            posterior_samples(cc_hot.4.obj, "cor_")[,2] * (cc_hot.4_sd[,3] * cc_hot.4_sd[,4]))
+names(cc_hot.4_cov) <- str_replace(names(posterior_samples(cc_hot.4.obj, "cor_")), "cor", "cov")
+cc_hot.4_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+cc_hot.4_residuals <- ( posterior_samples(cc_hot.4.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+cc_hot.4_coeffs <- rbind(cc_hot.4_fixed,
+                         cc_hot.4_var %>% posterior_summary() %>% round(3),
+                         cc_hot.4_cov %>% posterior_summary() %>% signif(3),
+                         cc_hot.4_residuals)
 #Excluding est. error
-cc_hot_imp.4_coeffs <- cc_hot_imp.4_coeffs[,c(1,3,4)]
+cc_hot.4_coeffs <- cc_hot.4_coeffs[,c(1,3,4)]
 #Rownames as col
-cc_hot_imp.4_coeffs <- as.data.frame(cc_hot_imp.4_coeffs)
-cc_hot_imp.4_coeffs$Parameter <- c(rownames(cc_hot_imp.4_coeffs))
-rownames(cc_hot_imp.4_coeffs) <- NULL 
-cc_hot_imp.4_coeffs <- cc_hot_imp.4_coeffs[,c(4,1:3)]
+cc_hot.4_coeffs <- as.data.frame(cc_hot.4_coeffs)
+cc_hot.4_coeffs$Parameter <- c(rownames(cc_hot.4_coeffs))
+rownames(cc_hot.4_coeffs) <- NULL 
+cc_hot.4_coeffs <- cc_hot.4_coeffs[,c(4,1:3)]
 ```
 
 ```{r, eval = TRUE, include = TRUE}
-pander(cc_cold_imp.4_coeffs,
+pander(cc_cold.4_coeffs,
        justify = "lccc",
        #split.cell = 80,
        caption = "Table S10 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1897")
 
-pander(cc_hot_imp.4_coeffs,
+pander(cc_hot.4_coeffs,
        justify = "lccc",
        #split.cell = 80,
        caption = "Table S11 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1921")

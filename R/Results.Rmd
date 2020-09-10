@@ -3,10 +3,10 @@ title: "Results"
 author: "Fonti Kar"
 date: "`r Sys.Date()`"
 output:
-  html_document:
-    df_print: paged
   word_document:
     reference_docx: Style_guide.docx
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -67,7 +67,29 @@ colnames(mod.imp.3_post)[1:14]
 
 #Combining the coefficients from the final model
 #Getting the fixed effects
-mod.imp.3_coeffs <- mod.imp.3_post[1:14] %>% posterior_summary() %>% round(3) 
+mod.imp.3_fixed <- mod.imp.3_post[1:7] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+mod.imp.3_sd <- posterior_samples(mod.imp.3.obj, "sd_")
+mod.imp.3_var <- mod.imp.3_sd^2 
+names(mod.imp.3_var) <- str_replace(names(mod.imp.3_var), "sd", "var")
+mod.imp.3_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+mod.imp.3_cov <- posterior_samples(mod.imp.3.obj, "cor_") * (mod.imp.3_sd[,1] * mod.imp.3_sd[,2])
+names(mod.imp.3_cov) <- str_replace(names(mod.imp.3_cov), "cor", "cov")
+
+mod.imp.3_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+mod.imp.3_residuals <- ( posterior_samples(mod.imp.3.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+mod.imp.3_coeffs <- rbind(mod.imp.3_fixed,
+                              mod.imp.3_var %>% posterior_summary() %>% round(3),
+                              mod.imp.3_cov %>% posterior_summary() %>% signif(3),
+                              mod.imp.3_residuals)
+        
 #Excluding est. error
 mod.imp.3_coeffs <- mod.imp.3_coeffs[,c(1,3,4)]
 #Rownames as col
@@ -131,6 +153,7 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
   facet_wrap(~samp_session) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-6.5, -5.5)) + 
   labs(x = "Temperature",
        y = TeX("log VCO_2 per minute"),
        #title = "Relative contribution of variance over age",
