@@ -1,0 +1,491 @@
+---
+title: "ESM"
+author: "Fonti Kar"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  word_document:
+    reference_docx: Style_guide.docx
+---
+
+```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(eval = FALSE,
+                      echo = FALSE, 
+                      include = FALSE, 
+                      warning = FALSE,
+                      message = FALSE)
+rm(list=ls())
+sessionInfo()
+
+# R version 3.6.1 (2019-07-05)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS High Sierra 10.13.6
+
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr)
+
+my_theme <- theme(#legend.position = "none",
+  legend.position = "bottom",
+  legend.text =element_text(size = 14),
+  legend.title =element_text(size = 14, face = "bold"),
+  panel.grid.major = element_blank(), 
+  panel.grid.minor = element_blank(),
+  axis.text=element_text(size=16),
+  axis.title=element_text(size=16),
+  plot.title = element_text(size = 20, face = "bold", hjust = 0.5),
+  plot.background = element_rect(colour = "white"))
+
+source("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/R/functions/helper.R")
+```
+
+```{r, eval = TRUE}
+## Read in data
+data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR.csv", stringsAsFactors = F)
+mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
+```
+
+## Heterogenous variance 
+Model with homogenous variance was best supported by WAIC values. As such, we did not explicitly model residuals in all subsequent models
+```{r, eval = TRUE}
+mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME HOMO
+mod.4.het.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.het.obj") #Intercept ME Hetero
+
+#Add IC
+waic_mod.4.obj<- waic(mod.4.obj)
+
+waic_mod.4.het.obj <- waic(mod.4.het.obj)
+
+#Compare
+WAIC_compare_resid <- loo_compare(waic_mod.4.obj, waic_mod.4.het.obj)
+
+#Creating table
+Resid_compare_WAIC <- data.frame(matrix(nrow = 2, ncol = 4))
+colnames(Resid_compare_WAIC) <- c("Model", "WAIC value", "ELPD Diff", "SE Diff")
+Resid_compare_WAIC$Model <- c("Homogenous residuals", "Heterogenous residuals")
+
+#WAIC
+Resid_compare_WAIC[1,2] <- waic_mod.4.obj$estimates[3,1] %>% round(2)
+Resid_compare_WAIC[2,2] <- waic_mod.4.het.obj$estimates[3,1] %>% round(2)
+
+#ELPD and SE
+#WAIC
+Resid_compare_WAIC[1,3] <- WAIC_compare_resid[1,1] %>% round(2)
+Resid_compare_WAIC[2,3] <- WAIC_compare_resid[2,1] %>% round(2)
+
+Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,2] %>% round(2)
+Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,2] %>% round(2)
+```
+
+```{r, eval = TRUE, include = TRUE}
+pander(Resid_compare_WAIC,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S1 Comparisons of WAIC values for homogenous and hetergenous residuals")
+```
+```{r, eval = TRUE}
+#Testing whether treatments differed in their reaction norms
+#Tabulate the model coefficients for all CC model
+#Read in models
+cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.1.obj")
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
+
+#Model without interaction
+#Extract entire posterior
+cc_mod.1_post <- posterior_samples(cc_mod.1.obj)
+#Names of each column
+colnames(cc_mod.1_post)[1:11]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_mod.1_coeffs <- cc_mod.1_post[1:11] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_mod.1_coeffs <- as.data.frame(cc_mod.1_coeffs)
+cc_mod.1_coeffs$Parameter <- c(rownames(cc_mod.1_coeffs))
+rownames(cc_mod.1_coeffs) <- NULL 
+cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(4,1:3)]
+
+#Full model
+#Extract entire posterior
+cc_mod.3_post <- posterior_samples(cc_mod.3.obj)
+#Names of each column
+colnames(cc_mod.3_post)[1:12]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_mod.3_coeffs <- cc_mod.3_post[1:12] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_mod.3_coeffs <- as.data.frame(cc_mod.3_coeffs)
+cc_mod.3_coeffs$Parameter <- c(rownames(cc_mod.3_coeffs))
+rownames(cc_mod.3_coeffs) <- NULL 
+cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
+```
+
+```{r}
+#Tabulating the imputation model with main effects only
+#Read in model
+mod.imp.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.1")
+
+#Extract entire posterior
+mod.imp.1_post <- posterior_samples(mod.imp.1.obj)
+#Names of each column
+colnames(mod.imp.1_post)[1:15]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+mod.imp.1_coeffs <- mod.imp.1_post[1:15] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+mod.imp.1_coeffs <- mod.imp.1_coeffs[,c(1,3,4)]
+#Rownames as col
+mod.imp.1_coeffs <- as.data.frame(mod.imp.1_coeffs)
+mod.imp.1_coeffs$Parameter <- c(rownames(mod.imp.1_coeffs))
+rownames(mod.imp.1_coeffs) <- NULL 
+mod.imp.1_coeffs <- mod.imp.1_coeffs[,c(4,1:3)] 
+```
+
+```{r, eval = TRUE, include = TRUE}
+pander(cc_mod.3_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S2 Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
+
+pander(mod.imp.1_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S3 Model coefficients of main effects model testing developmental temperature affects the elevation of the thermal reaction norm of metabolic rate. Output of this model was generated from an imputation analysis, n = 6000")
+
+pander(cc_mod.1_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S4 Model coefficients of main effects model testing developmental temperature affects the elevation of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
+
+```
+
+```{r, eval = TRUE, cache = TRUE}
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
+
+#Make a figure from model predictions using cc_mod.2.obj
+cc_mod.3.imp.post <- posterior_samples(cc_mod.3.obj) 
+names(cc_mod.3.imp.post)[1:12]
+
+#Setting up predictive data
+new_data <- mi_data %>% distinct(id, samp_session, temp, treatment)
+
+#Specificying the posterior
+post = cc_mod.3.imp.post
+
+#Try fucking pmap    
+model_predictions <- bind_rows(pmap(new_data, mr_pred))
+str(model_predictions)
+rownames(model_predictions) <- NULL
+
+#Check it
+model_predictions %>% filter(id == "ld0449") #Fantastic
+
+#Change ID to character
+model_predictions %<>%  mutate(id = as.character(id))
+
+#Plot it
+cold_ids <- model_predictions %>% filter(treatment == 23) %>% pull(id) %>% unique()
+hot_ids <- model_predictions %>% filter(treatment == 29) %>% pull(id) %>% unique()
+
+set.seed(7)
+subset_cold <- sample(cold_ids, 10 , replace = F)
+
+set.seed(7)
+subset_hot <- sample(hot_ids, 10 , replace = F)
+```
+
+```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5}
+#Filter out the subset IDS
+model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
+  ggplot(aes(x = temp, y = mean_lnmr)) + 
+  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.5) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position=position_dodge(width = 0.3)) +
+  geom_point(alpha = 0.2) + 
+  facet_wrap(~samp_session) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 per minute"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+```
+
+```{r, eval = TRUE}
+#Treatment differences in temperature specific repeatabilty using complete case models
+# Read in models
+cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
+cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
+
+#Poster names
+names(posterior_samples(cc_cold.2.obj))[1:10]
+
+#Temp define:
+temp <- seq(24,34, by = 2)
+#map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
+
+cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj)))
+cold_rpt %<>%  mutate(treatment = "cold")
+
+hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj)))
+hot_rpt %<>%  mutate(treatment = "hot")
+
+rpt_data <- bind_rows(cold_rpt, hot_rpt)
+
+#Posterior mode
+cold_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj, type = "mode")))
+cold_rpt_mode %<>%  mutate(treatment = "cold")
+
+hot_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj, type = "mode")))
+hot_rpt_mode %<>%  mutate(treatment = "hot")
+
+rpt_data_mode <- bind_rows(cold_rpt_mode, hot_rpt_mode)
+```
+
+```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
+#plot this
+ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+  geom_point(position = position_dodge(0.5), size = 4) + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) +
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  ylim(c(0, 0.4)) + 
+  labs(x = "Temperature",
+       y = "Repeatability",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none") 
+```
+
+```{r, eval = TRUE, include= TRUE}
+#Tabulating repeatability at each temperature
+rpt_data %<>% select(treatment, temp:Upper)
+
+pander(rpt_data,
+       justify = "lcccc",
+       #split.cell = 80,
+       caption = "Table S5 Temeprature specific, adjusted repeatability estimates of log transformed metabolic rate for lizards from two developmental temperatures (n_hot = 25, n_cold = 26). These values were estimated from complete case dataset, n_obs = 3818")
+```
+
+```{r, eval = TRUE}
+#Model coefficients for hot and cold imputation models that were used to estimate T specific repeatability
+# Read in models
+cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3")
+hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3")
+
+#Extract entire posterior
+cold_imp.post <- posterior_samples(cold_imp.obj)
+#Names of each column
+colnames(cold_imp.post)[1:12]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cold_imp_coeffs <- cold_imp.post[1:12] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cold_imp_coeffs <- cold_imp_coeffs[,c(1,3,4)]
+#Rownames as col
+cold_imp_coeffs <- as.data.frame(cold_imp_coeffs)
+cold_imp_coeffs$Parameter <- c(rownames(cold_imp_coeffs))
+rownames(cold_imp_coeffs) <- NULL 
+cold_imp_coeffs <- cold_imp_coeffs[,c(4,1:3)]
+
+#Extract entire posterior
+hot_imp.post <- posterior_samples(hot_imp.obj)
+#Names of each column
+colnames(hot_imp.post)[1:12]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+hot_imp_coeffs <- hot_imp.post[1:12] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+hot_imp_coeffs <- hot_imp_coeffs[,c(1,3,4)]
+#Rownames as col
+hot_imp_coeffs <- as.data.frame(hot_imp_coeffs)
+hot_imp_coeffs$Parameter <- c(rownames(hot_imp_coeffs))
+rownames(hot_imp_coeffs) <- NULL 
+hot_imp_coeffs <- hot_imp_coeffs[,c(4,1:3)]
+```
+
+```{r, eval = TRUE, include = TRUE}
+pander(cold_imp_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S6 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. This imputation model used an subset dataset of lizards in the cold developmental temperature only n = 26, n_obs = ")
+
+pander(hot_imp_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S7 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. This imputation model used an subset dataset of lizards in the hot developmental temperature only n = 25, n_obs = ")
+```
+
+```{r, eval = TRUE}
+#Model coefficients for hot and cold cc models that were used to estimate T specific repeatability
+# Read in models
+cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
+cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
+
+#Extract entire posterior
+cc_cold_imp.post <- posterior_samples(cc_cold.2.obj)
+#Names of each column
+colnames(cc_cold_imp.post)[1:10]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_cold_imp_coeffs <- cc_cold_imp.post[1:10] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_cold_imp_coeffs <- cc_cold_imp_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_cold_imp_coeffs <- as.data.frame(cc_cold_imp_coeffs)
+cc_cold_imp_coeffs$Parameter <- c(rownames(cc_cold_imp_coeffs))
+rownames(cc_cold_imp_coeffs) <- NULL 
+cc_cold_imp_coeffs <- cc_cold_imp_coeffs[,c(4,1:3)]
+
+#Extract entire posterior
+cc_hot_imp.post <- posterior_samples(cc_hot.2.obj)
+#Names of each column
+colnames(cc_hot_imp.post)[1:10]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_hot_imp_coeffs <- cc_hot_imp.post[1:10] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_hot_imp_coeffs <- cc_hot_imp_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_hot_imp_coeffs <- as.data.frame(cc_hot_imp_coeffs)
+cc_hot_imp_coeffs$Parameter <- c(rownames(cc_hot_imp_coeffs))
+rownames(cc_hot_imp_coeffs) <- NULL 
+cc_hot_imp_coeffs <- cc_hot_imp_coeffs[,c(4,1:3)]
+```
+
+```{r, eval = TRUE, include = TRUE}
+pander(cc_cold_imp_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S7 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1897")
+
+pander(cc_hot_imp_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S9 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. This imputation model used a complete case dataset of lizards in the hot developmental temperature only n = 25, n_obs = 1921")
+```
+
+```{r, eval = TRUE}
+#Model coefficients for hot and cold imputation models that were used to estimate repeatbility of slopes
+# Read in models
+cold.mod.imp.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.4")
+hot.mod.imp.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.4")
+
+#Extract entire posterior
+cold_imp.4.post <- posterior_samples(cold.mod.imp.4)
+#Names of each column
+colnames(cold_imp.4.post)[1:13]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cold_imp.4_coeffs <- cold_imp.4.post[1:13] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cold_imp.4_coeffs <- cold_imp.4_coeffs[,c(1,3,4)]
+#Rownames as col
+cold_imp.4_coeffs <- as.data.frame(cold_imp.4_coeffs)
+cold_imp.4_coeffs$Parameter <- c(rownames(cold_imp.4_coeffs))
+rownames(cold_imp.4_coeffs) <- NULL 
+cold_imp.4_coeffs <- cold_imp.4_coeffs[,c(4,1:3)]
+
+#Extract entire posterior
+hot_imp.4.post <- posterior_samples(hot.mod.imp.4)
+#Names of each column
+colnames(hot_imp.4.post)[1:13]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+hot_imp.4_coeffs <- hot_imp.4.post[1:12] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+hot_imp.4_coeffs <- hot_imp.4_coeffs[,c(1,3,4)]
+#Rownames as col
+hot_imp.4_coeffs <- as.data.frame(hot_imp.4_coeffs)
+hot_imp.4_coeffs$Parameter <- c(rownames(hot_imp.4_coeffs))
+rownames(hot_imp.4_coeffs) <- NULL 
+hot_imp.4_coeffs <- hot_imp.4_coeffs[,c(4,1:3)]
+```
+
+```{r, eval = TRUE, include = TRUE}
+pander(cold_imp.4_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S10 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This imputation model used an subset dataset of lizards in the cold developmental temperature only n = 26, n_obs = ")
+
+pander(hot_imp.4_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S11 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This imputation model used an subset dataset of lizards in the hot developmental temperature only n = 25, n_obs = ")
+```
+
+```{r}
+#Repeatability of the slope for each treatment
+#CC
+cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.4.obj")
+cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.4.obj")
+
+brms_rptSlope_cc(model = cc_cold.4.obj)
+brms_rptSlope_cc(model = cc_hot.4.obj)
+```
+
+```{r, eval = TRUE}
+#Model coefficients for hot and cold complete case that were used to estimate repeatbility of slopes
+# Read in models
+cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.4.obj")
+cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.4.obj")
+
+#Extract entire posterior
+cc_cold_imp.4.post <- posterior_samples(cc_cold.4.obj)
+#Names of each column
+colnames(cc_cold_imp.4.post)[1:13]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_cold_imp.4_coeffs <- cc_cold_imp.4.post[1:13] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_cold_imp.4_coeffs <- cc_cold_imp.4_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_cold_imp.4_coeffs <- as.data.frame(cc_cold_imp.4_coeffs)
+cc_cold_imp.4_coeffs$Parameter <- c(rownames(cc_cold_imp.4_coeffs))
+rownames(cc_cold_imp.4_coeffs) <- NULL 
+cc_cold_imp.4_coeffs <- cc_cold_imp.4_coeffs[,c(4,1:3)]
+
+#Extract entire posterior
+cc_hot_imp.4.post <- posterior_samples(cc_hot.4.obj)
+#Names of each column
+colnames(cc_hot_imp.4.post)[1:13]
+
+#Combining the coefficients from the final model
+#Getting the fixed effects
+cc_hot_imp.4_coeffs <- cc_hot_imp.4.post[1:12] %>% posterior_summary() %>% round(3) 
+#Excluding est. error
+cc_hot_imp.4_coeffs <- cc_hot_imp.4_coeffs[,c(1,3,4)]
+#Rownames as col
+cc_hot_imp.4_coeffs <- as.data.frame(cc_hot_imp.4_coeffs)
+cc_hot_imp.4_coeffs$Parameter <- c(rownames(cc_hot_imp.4_coeffs))
+rownames(cc_hot_imp.4_coeffs) <- NULL 
+cc_hot_imp.4_coeffs <- cc_hot_imp.4_coeffs[,c(4,1:3)]
+```
+
+```{r, eval = TRUE, include = TRUE}
+pander(cc_cold_imp.4_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S10 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1897")
+
+pander(cc_hot_imp.4_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S11 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1921")
+```

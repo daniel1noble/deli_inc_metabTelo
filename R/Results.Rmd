@@ -38,117 +38,21 @@ my_theme <- theme(#legend.position = "none",
 source("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/R/functions/helper.R")
 ```
 
+$$I_{t} = V_{I} + (t^2.V_{S}) + (2t.Cov_{I,S}) $$
+
+where $V_I$ is the among individual variance in intercepts, $t$ is the specific temperature at which repeatability is calculated for, $V_S$ is the among individual and $COV_{I,S}$ is the covariance between the intercept and slope at the among individual level. Temperature specific repeatability ($R_{t}$) is calculated as follows: 
+
+$$R_{t} = \displaystyle \frac{I_{t}}{(I_{t} + V_{session} + V_{e})} $$
+
+where: $I_{t}$ is the variance among individuals at a particular temperature, $V_{session}$ is the variance due to sampling session and $V_{e}$ is residual variance. 
+
+$$R_{slope} = \displaystyle \frac{V_{I,slope}}{(V_{I,slope} + V_{series, slope})} $$
+where: $V_{I,slope}$ is the among individual variance in the temperature slope term and the $V_{series, slope}$ is the among sampling session within individual variance in the temperature slope term
+
 ```{r, eval = TRUE}
 ## Read in data
 data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR.csv", stringsAsFactors = F)
 mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
-```
-
-## Heterogenous variance 
-Model with homogenous variance was best supported by WAIC values. As such, we did not explicitly model residuals in all subsequent models
-```{r, eval = TRUE}
-mod.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.obj") #Intercept ME HOMO
-mod.4.het.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.4.het.obj") #Intercept ME Hetero
-
-#Add IC
-waic_mod.4.obj<- waic(mod.4.obj)
-
-waic_mod.4.het.obj <- waic(mod.4.het.obj)
-
-#Compare
-WAIC_compare_resid <- loo_compare(waic_mod.4.obj, waic_mod.4.het.obj)
-
-#Creating table
-Resid_compare_WAIC <- data.frame(matrix(nrow = 2, ncol = 4))
-colnames(Resid_compare_WAIC) <- c("Model", "WAIC value", "ELPD Diff", "SE Diff")
-Resid_compare_WAIC$Model <- c("Homogenous residuals", "Heterogenous residuals")
-
-#WAIC
-Resid_compare_WAIC[1,2] <- waic_mod.4.obj$estimates[3,1] %>% round(2)
-Resid_compare_WAIC[2,2] <- waic_mod.4.het.obj$estimates[3,1] %>% round(2)
-
-#ELPD and SE
-#WAIC
-Resid_compare_WAIC[1,3] <- WAIC_compare_resid[1,1] %>% round(2)
-Resid_compare_WAIC[2,3] <- WAIC_compare_resid[2,1] %>% round(2)
-
-Resid_compare_WAIC[1,4] <- WAIC_compare_resid[1,2] %>% round(2)
-Resid_compare_WAIC[2,4] <- WAIC_compare_resid[2,2] %>% round(2)
-
-```
-
-```{r, eval = TRUE, include = TRUE}
-pander(Resid_compare_WAIC,
-       justify = "lcccc",
-       #split.cell = 80,
-       caption = "Table SX Comparisons of WAIC values for homogenous and hetergenous residuals")
-```
-
-```{r}
-#Fixed effects model selection
-cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.1.obj")
-cc_mod.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.2.obj")
-cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
-
-#Add IC
-waic_cc_mod.1.obj <- waic(cc_mod.1.obj)
-waic_cc_mod.2.obj <- waic(cc_mod.2.obj)
-waic_cc_mod.3.obj <- waic(cc_mod.3.obj)
-
-loo_compare(waic_cc_mod.1.obj, waic_cc_mod.2.obj, waic_cc_mod.3.obj)
-```
-
-```{r, eval = TRUE}
-#Tabulate the model coefficients for all CC model
-#Read in models
-cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.1.obj")
-cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
-
-#Model without interaction
-#Extract entire posterior
-cc_mod.1_post <- posterior_samples(cc_mod.1.obj)
-#Names of each column
-colnames(cc_mod.1_post)[1:11]
-
-#Combining the coefficients from the final model
-#Getting the fixed effects
-cc_mod.1_coeffs <- cc_mod.1_post[1:11] %>% posterior_summary() %>% round(3) 
-#Excluding est. error
-cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(1,3,4)]
-#Rownames as col
-cc_mod.1_coeffs <- as.data.frame(cc_mod.1_coeffs)
-cc_mod.1_coeffs$Parameter <- c(rownames(cc_mod.1_coeffs))
-rownames(cc_mod.1_coeffs) <- NULL 
-cc_mod.1_coeffs <- cc_mod.1_coeffs[,c(4,1:3)]
-
-#Full model
-#Extract entire posterior
-cc_mod.3_post <- posterior_samples(cc_mod.3.obj)
-#Names of each column
-colnames(cc_mod.3_post)[1:12]
-
-#Combining the coefficients from the final model
-#Getting the fixed effects
-cc_mod.3_coeffs <- cc_mod.3_post[1:12] %>% posterior_summary() %>% round(3) 
-#Excluding est. error
-cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(1,3,4)]
-#Rownames as col
-cc_mod.3_coeffs <- as.data.frame(cc_mod.3_coeffs)
-cc_mod.3_coeffs$Parameter <- c(rownames(cc_mod.3_coeffs))
-rownames(cc_mod.3_coeffs) <- NULL 
-cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
-```
-
-```{r, eval = TRUE, include = TRUE}
-pander(cc_mod.1_coeffs,
-       justify = "lccc",
-       #split.cell = 80,
-       caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
-
-pander(cc_mod.3_coeffs,
-       justify = "lccc",
-       #split.cell = 80,
-       caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used a complete case dataset, n = 3818")
 ```
 
 ```{r, eval = TRUE}
@@ -177,63 +81,7 @@ mod.imp.3_coeffs <- mod.imp.3_coeffs[,c(4,1:3)]
 pander(mod.imp.3_coeffs,
        justify = "lccc",
        #split.cell = 80,
-       caption = "Table SX Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used an imputated dataset, n = 6000")
-```
-
-```{r, eval = TRUE, cache = TRUE}
-cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
-
-#Make a figure from model predictions using cc_mod.2.obj
-cc_mod.3.imp.post <- posterior_samples(cc_mod.3.obj) 
-names(cc_mod.3.imp.post)[1:12]
-
-#Setting up predictive data
-new_data <- mi_data %>% distinct(id, samp_session, temp, treatment)
-
-#Specificying the posterior
-post = cc_mod.3.imp.post
-
-#Try fucking pmap    
-model_predictions <- bind_rows(pmap(new_data, mr_pred))
-str(model_predictions)
-rownames(model_predictions) <- NULL
-
-#Check it
-model_predictions %>% filter(id == "ld0449") #Fantastic
-
-#Change ID to character
-model_predictions %<>%  mutate(id = as.character(id))
-
-#Plot it
-cold_ids <- model_predictions %>% filter(treatment == 23) %>% pull(id) %>% unique()
-hot_ids <- model_predictions %>% filter(treatment == 29) %>% pull(id) %>% unique()
-
-set.seed(7)
-subset_cold <- sample(cold_ids, 10 , replace = F)
-
-set.seed(7)
-subset_hot <- sample(hot_ids, 10 , replace = F)
-```
-
-```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5}
-#Filter out the subset IDS
-model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
-  ggplot(aes(x = temp, y = mean_lnmr)) + 
-  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.5) + 
-  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position=position_dodge(width = 0.3)) +
-  geom_point(alpha = 0.2) + 
-  facet_wrap(~samp_session) + 
-  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
-  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
-  labs(x = "Temperature",
-       y = TeX("log VCO_2 per minute"),
-       #title = "Relative contribution of variance over age",
-       colour =  "Treatment") + 
-  theme_bw() +
-  my_theme + 
-  theme(legend.position = "none",
-        strip.text = element_text(size = 18),
-        strip.background = element_blank())
+       caption = "Table 1 Model coefficients of full model testing whether developmental temperature affects the elevation and slope of the thermal reaction norm of metabolic rate. This model used an imputated dataset, n = 6000")
 ```
 
 ```{r, eval = TRUE, cache = TRUE}
@@ -248,6 +96,9 @@ names(mod.3.imp.post)[120:150]
 #Specificying the posterior
 post = mod.3.imp.post
 
+#Setting up predictive data
+new_data <- mi_data %>% distinct(id, samp_session, temp, treatment)
+
 #Try pmap
 imp_model_predictions <- bind_rows(pmap(new_data, imp_mr_pred))
 str(imp_model_predictions)
@@ -255,7 +106,19 @@ rownames(imp_model_predictions) <- NULL
 
 #Check it
 imp_model_predictions %>% filter(id == "ld0449" & samp_session == 1) #Fantastic
-model_predictions %>% filter(id == "ld0449" & samp_session == 1)
+
+#Change ID to character
+imp_model_predictions %<>%  mutate(id = as.character(id))
+
+#Plot it
+cold_ids <- imp_model_predictions %>% filter(treatment == 23) %>% pull(id) %>% unique()
+hot_ids <- imp_model_predictions %>% filter(treatment == 29) %>% pull(id) %>% unique()
+
+set.seed(7)
+subset_cold <- sample(cold_ids, 10 , replace = F)
+
+set.seed(7)
+subset_hot <- sample(hot_ids, 10 , replace = F)
 ```
 
 ```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5}
@@ -277,52 +140,6 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
   theme(legend.position = "none",
         strip.text = element_text(size = 18),
         strip.background = element_blank())
-```
-
-```{r, eval = TRUE}
-#Treatment differences in temperature specific repeatabilty using complete case models
-# Read in models
-cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
-cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
-
-#Poster names
-names(posterior_samples(cc_cold.2.obj))[1:10]
-
-#Temp define:
-temp <- seq(24,34, by = 2)
-#map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
-
-cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj)))
-cold_rpt %<>%  mutate(treatment = "cold")
-
-hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj)))
-hot_rpt %<>%  mutate(treatment = "hot")
-
-rpt_data <- bind_rows(cold_rpt, hot_rpt)
-
-#Posterior mode
-cold_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj, type = "mode")))
-cold_rpt_mode %<>%  mutate(treatment = "cold")
-
-hot_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj, type = "mode")))
-hot_rpt_mode %<>%  mutate(treatment = "hot")
-
-rpt_data_mode <- bind_rows(cold_rpt_mode, hot_rpt_mode)
-```
-
-```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
-#plot this
-ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
-  geom_point(position = position_dodge(0.5), size = 4) + 
-  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
-  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
-  ylim(c(0, 0.4)) + 
-  labs(x = "Temperature",
-       y = "Repeatability",
-       colour =  "Treatment") + 
-  theme_bw() +
-  my_theme + 
-  theme(legend.position = "none") 
 ```
 
 ```{r}
@@ -386,12 +203,12 @@ imp_rpt_mode <- bind_rows(imp_cold_mode, imp_hot_mode)
 ```
 
 ```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
-#plot this
+#Fig 2
 ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
   geom_point(position = position_dodge(0.5), size = 4) + 
   geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
-  ylim(c(0, 0.26)) + 
+  ylim(c(0.05, 0.26)) + 
   labs(x = "Temperature",
        y = "Repeatability",
        colour =  "Treatment") + 
@@ -428,6 +245,26 @@ imp_b <- ggplot(imp_rpt_mode, aes(x = factor(temp), y = rpt, group = treatment, 
 plot_layout(imp_a / imp_b)
 ```
 
+```{r, eval = TRUE, include= TRUE}
+#Tabulating repeatability at each temperature
+imp_rpt_data %<>% select(treatment, temp:Upper)
+
+pander(imp_rpt_data,
+       justify = "lcccc",
+       #split.cell = 80,
+       caption = "Table 2 Temeprature specific, adjusted repeatability estimates of log transformed metabolic rate for lizards from two developmental temperatures (n_hot = 25, n_cold = 26). These values were estimated from an imputation analysis, n_obs = 6000")
+```
+
+```{r}
+#Repeatability of the slope for each treatment
+#Imputed
+cold.mod.imp.4 <- readRDS("output/rds/cold.mod.imp.4")
+hot.mod.imp.4 <- readRDS("output/rds/hot.mod.imp.4")
+
+brms_rptSlope_imp(model = cold.mod.imp.4)
+brms_rptSlope_imp(model = hot.mod.imp.4)
+```
+
 ## How does developmental temperature affect temperature specific repeatability
 
-Lizards born in cold developmental temperatures had on higher repeatabilty compared to lizards from the hot developmental temeprature however, credible intervals overlap partially (Fig. XX, Table XX). Across both treatment grounts, repeatability did not change across acute temperatures (Fig.2, Table XX).  
+Across both treatment grounts, repeatability did not change across acute temperatures (Fig.2, Table XX). There were no differences in repeatability between developmental temperatures (Fig. 2, Table XX). Although in the complete case analysis there was a trend for the cold developmental temperatures to have on higher repeatabilty compared to the hot developmental temeprature however credible intervals overlapped partially (Fig. XX, Table XX) and this result was not reflected in the more conservative imputation analysis. The slope of the thermal reaction norm was repeatable in both treatment groups, however there were no treatment differences (Fig. XX and). This result should be interpretted with caution as repeatability of the slope was estimated with a large degree of uncertainty (95% CI) 
