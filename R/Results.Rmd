@@ -231,7 +231,7 @@ ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = 
   geom_point(position = position_dodge(0.5), size = 4) + 
   geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
-  ylim(c(0.05, 0.26)) + 
+  ylim(c(0, 0.40)) + 
   labs(x = "Temperature",
        y = "Repeatability",
        colour =  "Treatment") + 
