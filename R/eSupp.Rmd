@@ -727,3 +727,179 @@ pander(cc_hot.4_coeffs,
        #split.cell = 80,
        caption = "Table S11 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1921")
 ```
+
+```{r}
+#Post hoc analysis to test whether treatment differences in reaction norms are found early on or later
+mod.imp.3_s1 <- readRDS("output/rds/mod.imp.3_s1")
+mod.imp.3_s10 <- readRDS("output/rds/mod.imp.3_s10")
+
+#What is the mean age at sampling session 1 and 10
+data %>% filter(samp_session == 1 | samp_session == 10) %>% 
+  select(id, samp_session, treatment, age) %>% 
+  distinct() %>% 
+  group_by(samp_session, treatment) %>%
+  summarise(mean_age = round(mean(age, na.rm = T),2),
+            sd_age = round(sd(age, na.rm = T),2)) %>% 
+  as.data.frame()
+
+#Cofficients summary of sampling session 1
+mod.imp.3_s1_post <- posterior_samples(mod.imp.3_s1)
+names(mod.imp.3_s1_post)[1:13]
+
+#Getting the fixed effects
+mod.imp.3_s1_fixed <- mod.imp.3_s1_post[1:7] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+mod.imp.3_s1_sd <- posterior_samples(mod.imp.3_s1, "sd_")
+mod.imp.3_s1_var <- mod.imp.3_s1_sd^2 
+names(mod.imp.3_s1_var) <- str_replace(names(mod.imp.3_s1_var), "sd", "var")
+mod.imp.3_s1_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+mod.imp.3_s1_cov <- bind_cols(posterior_samples(mod.imp.3_s1, "cor_") * (mod.imp.3_s1_sd[,1] * mod.imp.3_s1_sd[,2]))
+names(mod.imp.3_s1_cov) <- str_replace(names(posterior_samples(mod.imp.3_s1, "cor_")), "cor", "cov")
+mod.imp.3_s1_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+mod.imp.3_s1_residuals <- ( posterior_samples(mod.imp.3_s1, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+mod.imp.3_s1_coeffs <- rbind(mod.imp.3_s1_fixed,
+                         mod.imp.3_s1_var %>% posterior_summary() %>% round(3),
+                         mod.imp.3_s1_cov %>% posterior_summary() %>% signif(3),
+                         mod.imp.3_s1_residuals)
+
+#Excluding est. error
+mod.imp.3_s1_coeffs <- mod.imp.3_s1_coeffs[,c(1,3,4)]
+#Rownames as col
+mod.imp.3_s1_coeffs <- as.data.frame(mod.imp.3_s1_coeffs)
+mod.imp.3_s1_coeffs$Parameter <- c(rownames(mod.imp.3_s1_coeffs))
+rownames(mod.imp.3_s1_coeffs) <- NULL 
+mod.imp.3_s1_coeffs <- mod.imp.3_s1_coeffs[,c(4,1:3)]
+
+#Cofficients summary of sampling session 10
+mod.imp.3_s10_post <- posterior_samples(mod.imp.3_s10)
+names(mod.imp.3_s10_post)[1:13]
+
+#Getting the fixed effects
+mod.imp.3_s10_fixed <- mod.imp.3_s10_post[1:7] %>% posterior_summary() %>% round(3) 
+
+#Getting the SD 
+mod.imp.3_s10_sd <- posterior_samples(mod.imp.3_s10, "sd_")
+mod.imp.3_s10_var <- mod.imp.3_s10_sd^2 
+names(mod.imp.3_s10_var) <- str_replace(names(mod.imp.3_s10_var), "sd", "var")
+mod.imp.3_s10_var %>% posterior_summary() %>% round(3) 
+
+#Getting the COR to cov
+mod.imp.3_s10_cov <- bind_cols(posterior_samples(mod.imp.3_s10, "cor_") * (mod.imp.3_s10_sd[,1] * mod.imp.3_s10_sd[,2]))
+names(mod.imp.3_s10_cov) <- str_replace(names(posterior_samples(mod.imp.3_s10, "cor_")), "cor", "cov")
+mod.imp.3_s10_cov %>% posterior_summary() %>% signif(3) 
+
+#Getting the residuals
+mod.imp.3_s10_residuals <- ( posterior_samples(mod.imp.3_s10, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+
+#Bind these together
+mod.imp.3_s10_coeffs <- rbind(mod.imp.3_s10_fixed,
+                         mod.imp.3_s10_var %>% posterior_summary() %>% round(3),
+                         mod.imp.3_s10_cov %>% posterior_summary() %>% signif(3),
+                         mod.imp.3_s10_residuals)
+
+#Excluding est. error
+mod.imp.3_s10_coeffs <- mod.imp.3_s10_coeffs[,c(1,3,4)]
+#Rownames as col
+mod.imp.3_s10_coeffs <- as.data.frame(mod.imp.3_s10_coeffs)
+mod.imp.3_s10_coeffs$Parameter <- c(rownames(mod.imp.3_s10_coeffs))
+rownames(mod.imp.3_s10_coeffs) <- NULL 
+mod.imp.3_s10_coeffs <- mod.imp.3_s10_coeffs[,c(4,1:3)]
+
+#Model predictions for sampling session 1 and 10
+#Setting up predictive data
+
+s10_new_data <- mi_data %>% filter(samp_session == 10) %>% 
+  mutate(series = paste0(id, "_", samp_session)) %>% 
+  distinct(id, temp, treatment)
+
+s1_new_data <- mi_data %>% filter(samp_session == 1) %>% 
+  mutate(series = paste0(id, "_", samp_session)) %>% 
+  distinct(id, temp, treatment)
+
+post = mod.imp.3_s10_post
+post = mod.imp.3_s1_post
+
+#Try pmap
+s10_predictions <- bind_rows(pmap(s10_new_data, imp_ph_pred))
+s10_predictions$samp_sesson <- 10
+
+s1_predictions <- bind_rows(pmap(s1_new_data, imp_ph_pred))
+s1_predictions$samp_sesson <- 1
+
+posthoc_dat <- bind_rows(s1_predictions,
+          s10_predictions)
+
+rownames(posthoc_dat) <- NULL
+
+ggplot(data = posthoc_dat, aes(x = temp, y = mean_lnmr)) + 
+  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.4) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position =position_dodge(width = 0.3)) +
+  geom_point(alpha = 0.2) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-6.6, -5.25)) + 
+  facet_wrap(~samp_sesson) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 per minute"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+
+ggplot(data = s1_predictions, aes(x = temp, y = mean_lnmr)) + 
+  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.4) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1) +
+  geom_point(alpha = 0.2) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-6.6, -5.25)) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 per minute"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+
+ggplot(data = s10_predictions, aes(x = temp, y = mean_lnmr)) + 
+  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.4) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1) +
+  geom_point(alpha = 0.2) + 
+  scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-6.6, -5.25)) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 per minute"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+```
+
+```{r}
+pander(mod.imp.3_s1_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S14 Model coefficients of model testing whether body mass, temeperature and age predicts variation in metabolic rate. This was an imputation model used a subset dataset of sampling session one only n = 25, nobs = 3000. Mass and MR was log transformed and Age was z-transformed. Bolded estimates are significantly different from zero. Values with * indicate very small values that are still greater than zero")
+
+pander(mod.imp.3_s10_coeffs,
+       justify = "lccc",
+       #split.cell = 80,
+       caption = "Table S15 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1897")
+```
+
