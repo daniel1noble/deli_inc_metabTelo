@@ -166,7 +166,7 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
 ```
 
 ```{r}
-cc_a <- ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+imp_a <- ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
   geom_point(position = position_dodge(0.5), size = 4) + 
   geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
@@ -178,7 +178,7 @@ cc_a <- ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colou
   my_theme + 
   theme(legend.position = "none") 
 
-cc_b <- ggplot(rpt_data_mode, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+imp_b <- ggplot(rpt_data_mode, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
   geom_point(position = position_dodge(0.5), size = 4) + 
   geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
@@ -190,7 +190,7 @@ cc_b <- ggplot(rpt_data_mode, aes(x = factor(temp), y = rpt, group = treatment, 
   my_theme + 
   theme(legend.position = "none") 
 
-plot_layout(cc_a / cc_b)
+plot_layout(imp_a / imp_b)
 ```
 
 
@@ -276,6 +276,27 @@ pander(imp_rpt_data,
        justify = "lcccc",
        #split.cell = 80,
        caption = "Table 2 Temeprature specific, adjusted repeatability estimates of log transformed metabolic rate for lizards from two developmental temperatures (n_hot = 25, n_cold = 26). These values were estimated from an imputation analysis, n_obs = 6000")
+```
+
+```{r}
+#Are there actually any significant differences in T specific repeatability of average MR? Answer is no
+diff_24 <- rpt_posterior(x = 24, model = hot_imp.obj) - rpt_posterior(x = 24, model = cold_imp.obj)
+posterior_summary(diff_24)
+
+diff_26 <- rpt_posterior(x = 26, model = hot_imp.obj) - rpt_posterior(x = 26, model = cold_imp.obj)
+posterior_summary(diff_26)
+
+diff_28 <- rpt_posterior(x = 28, model = hot_imp.obj) - rpt_posterior(x = 28, model = cold_imp.obj)
+posterior_summary(diff_28)
+
+diff_30 <- rpt_posterior(x = 30, model = hot_imp.obj) - rpt_posterior(x = 30, model = cold_imp.obj)
+posterior_summary(diff_30)
+
+diff_32 <- rpt_posterior(x = 32, model = hot_imp.obj) - rpt_posterior(x = 32, model = cold_imp.obj)
+posterior_summary(diff_32)
+
+diff_34 <- rpt_posterior(x = 34, model = hot_imp.obj) - rpt_posterior(x = 34, model = cold_imp.obj)
+posterior_summary(diff_34)
 ```
 
 ```{r}

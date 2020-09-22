@@ -3,10 +3,10 @@ title: "ESM"
 author: "Fonti Kar"
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    reference_docx: Style_guide.docx
   html_document:
     df_print: paged
+  word_document:
+    reference_docx: Style_guide.docx
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -728,16 +728,16 @@ pander(cc_hot.4_coeffs,
        caption = "Table S11 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1921")
 ```
 
-```{r}
+```{r, eval = TRUE}
 #Post hoc analysis to test whether treatment differences in reaction norms are found early on or later
-mod.imp.3_s1 <- readRDS("output/rds/mod.imp.3_s1")
-mod.imp.3_s10 <- readRDS("output/rds/mod.imp.3_s10")
+mod.imp.3_s1 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3_s1")
+mod.imp.3_s10 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3_s10")
 
 #What is the mean age at sampling session 1 and 10
 data %>% filter(samp_session == 1 | samp_session == 10) %>% 
   select(id, samp_session, treatment, age) %>% 
   distinct() %>% 
-  group_by(samp_session, treatment) %>%
+  group_by(samp_session) %>%
   summarise(mean_age = round(mean(age, na.rm = T),2),
             sd_age = round(sd(age, na.rm = T),2)) %>% 
   as.data.frame()
@@ -811,7 +811,8 @@ mod.imp.3_s10_coeffs <- as.data.frame(mod.imp.3_s10_coeffs)
 mod.imp.3_s10_coeffs$Parameter <- c(rownames(mod.imp.3_s10_coeffs))
 rownames(mod.imp.3_s10_coeffs) <- NULL 
 mod.imp.3_s10_coeffs <- mod.imp.3_s10_coeffs[,c(4,1:3)]
-
+```
+```{r}
 #Model predictions for sampling session 1 and 10
 #Setting up predictive data
 
@@ -824,11 +825,12 @@ s1_new_data <- mi_data %>% filter(samp_session == 1) %>%
   distinct(id, temp, treatment)
 
 post = mod.imp.3_s10_post
-post = mod.imp.3_s1_post
 
 #Try pmap
 s10_predictions <- bind_rows(pmap(s10_new_data, imp_ph_pred))
 s10_predictions$samp_sesson <- 10
+
+post = mod.imp.3_s1_post
 
 s1_predictions <- bind_rows(pmap(s1_new_data, imp_ph_pred))
 s1_predictions$samp_sesson <- 1
@@ -891,7 +893,7 @@ ggplot(data = s10_predictions, aes(x = temp, y = mean_lnmr)) +
         strip.background = element_blank())
 ```
 
-```{r}
+```{r, eval = TRUE, include = TRUE}
 pander(mod.imp.3_s1_coeffs,
        justify = "lccc",
        #split.cell = 80,
