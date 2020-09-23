@@ -905,3 +905,21 @@ pander(mod.imp.3_s10_coeffs,
        caption = "Table S15 Model coefficients of model whether body mass, temeperature and age predicts variation in metabolic rate. In this model, we fitted a 'series' as random intercept with temeperature as a random slope to estimate repeatability of the slope. See Statistical Analyses for details. This model used a complete case dataset of lizards in the cold developmental temperature only n = 26, n_obs = 1897")
 ```
 
+```{r}
+# Checking on White et al's meta-analysis data for ectotherms
+white <- read.csv("data/white_metaanalysis.csv", stringsAsFactors = F)
+
+ecto_white <- white %>% filter(Variable == "RMR" & Group == "Ectotherm") %>% arrange(Interval..days.)
+
+#What is our measurement interval?
+#Our interval is 5 and 12 days
+
+ecto_white %>% filter(Interval..days. > 5) %>% 
+  summarise(mean_rpt = mean(Repeatability) %>% round(2) ,
+            sd_rpt = sd(Repeatability) %>% round(2))
+
+ecto_white %>% filter(Interval..days. > 8.5) %>% 
+  summarise(mean_rpt = mean(Repeatability) %>% round(2) ,
+            sd_rpt = sd(Repeatability) %>% round(2), 
+            n = length(Repeatability))
+```
