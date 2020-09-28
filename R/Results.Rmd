@@ -205,7 +205,8 @@ names(posterior_samples(cold_imp.obj))[1:10]
 
 #Temp define:
 temp <- seq(24,34, by = 2)
-#map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
+# map(temp, 
+#     brms_rpt_imp) #Can't get this to work
 
 imp_cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = cold_imp.obj)))
 imp_cold_rpt %<>%  mutate(treatment = "cold")
@@ -267,6 +268,49 @@ imp_b <- ggplot(imp_rpt_mode, aes(x = factor(temp), y = rpt, group = treatment, 
 
 plot_layout(imp_a / imp_b)
 ```
+
+```{r}
+#Investigating the among and residual variance
+temp <- seq(24,34, by = 2)
+
+var_comp_cold <- bind_rows(lapply(temp, function(x) var_comp_imp(x, model = cold_imp.obj, var_comp = "id")),
+                           lapply(temp, function(x) var_comp_imp(x, model = cold_imp.obj, var_comp = "sigma")))
+var_comp_cold %<>%  mutate(treatment = "cold")
+
+var_comp_hot <- bind_rows(lapply(temp, function(x) var_comp_imp(x, model = hot_imp.obj, var_comp = "id")),
+                           lapply(temp, function(x) var_comp_imp(x, model = hot_imp.obj, var_comp = "sigma")))
+var_comp_hot %<>%  mutate(treatment = "hot")
+
+var_comps <- bind_rows(var_comp_cold, var_comp_hot)
+
+ggplot(data = var_comps, aes(x = factor(temp), y = variance)) + 
+  geom_col(aes(fill = var_comp), stat = "identity", position = "dodge") + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0), position = "dodge") + 
+  theme_bw() + 
+  facet_wrap(~treatment)
+
+ggplot(data = var_comps, aes(x = var_comp, y = variance)) + 
+  geom_col(aes(fill = var_comp),position = "dodge") + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0)) + 
+  theme_bw() + 
+  facet_wrap(~treatment)
+
+
+ggplot(data = var_comps, aes(x = var_comp, y = variance)) + 
+  geom_col(aes(fill = var_comp), stat = "identity",position = "dodge") + 
+  theme_bw() + 
+  facet_wrap(~treatment)
+
+
+ggplot(data = var_comps, aes(x = factor(temp), y = variance)) + 
+  geom_point(aes(colour = var_comp),  position = "dodge") + 
+  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0), position = "dodge") + 
+  theme_bw() + 
+  facet_wrap(~treatment)
+
+
+```
+
 
 ```{r, eval = TRUE, include= TRUE}
 #Tabulating repeatability at each temperature
