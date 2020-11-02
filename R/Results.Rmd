@@ -149,13 +149,62 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
   ggplot(aes(x = temp, y = mean_lnmr)) + 
   geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.5) + 
   geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position=position_dodge(width = 0.3)) +
-  geom_point(alpha = 0.2) + 
+  #geom_point(alpha = 0.2) + 
   facet_wrap(~samp_session) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
-  scale_y_continuous(lim = c(-6.5, -5.5)) + 
+  scale_y_continuous(breaks = c(seq(-6.5,-5.2, by = 0.25))) + 
   labs(x = "Temperature",
-       y = TeX("log VCO_2 per minute"),
+       y = TeX("log VCO_2 min^{-1}"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+
+#Raw data
+brewer.pal(10, "PuOr")
+brewer.pal(10, "PRGn")
+brewer.pal(10, "RdGy")
+
+hot_col <- c("red3", "tomato2", "sienna1", "orangered", "chocolate1", 
+             "indianred2", "sandybrown", "firebrick1", "darkred", "saddlebrown")
+
+cold_col <- c("royalblue4", "cornflowerblue", "lightseagreen", "lightskyblue", "lightsteelblue3", 
+             "cadetblue", "skyblue3", "skyblue4", "turquoise4", "steelblue1")
+
+#HOT
+raw_hot <- data %>% filter(treatment == 29 & samp_session %in% c(1,5,10)) %>% filter(id %in% c(subset_hot)) %>% 
+  ggplot(aes(x = temp, y = lnmr)) + 
+  geom_line(aes(group = id, colour = factor(id)), stat="smooth", method = "lm", lwd = 0.5, alpha =1) + 
+  #geom_line(color = "#F24D2A", stat="smooth", method = "lm", lwd = 2, alpha = 0.7) +
+  facet_wrap(~samp_session) + 
+  scale_colour_manual(values = hot_col) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-7.2,-5.3)) + 
+  labs(x = " ",
+       y = TeX("log VCO_2 min^{-1}"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+
+#COLD
+raw_cold <- data %>% filter(id %in% subset_cold & samp_session %in% c(1,5,10)) %>% 
+  ggplot(aes(x = temp, y = lnmr)) + 
+  geom_line(aes(group = id, colour = factor(id)), stat="smooth", method = "lm", lwd = 0.5, alpha = 1) + 
+  #geom_line(color = "#2790F3", stat="smooth", method = "lm", lwd = 2, alpha = 0.8) +
+  facet_wrap(~samp_session) + 
+  scale_colour_manual(values = cold_col) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-7.2,-5.3)) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 min^{-1}"),
        #title = "Relative contribution of variance over age",
        colour =  "Treatment") + 
   theme_bw() +
@@ -191,6 +240,7 @@ imp_b <- ggplot(rpt_data_mode, aes(x = factor(temp), y = rpt, group = treatment,
   theme(legend.position = "none") 
 
 plot_layout(imp_a / imp_b)
+plot_layout(raw_hot / raw_cold)
 ```
 
 
@@ -325,22 +375,22 @@ pander(imp_rpt_data,
 ```{r}
 #Are there actually any significant differences in T specific repeatability of average MR? Answer is no
 diff_24 <- rpt_posterior(x = 24, model = hot_imp.obj) - rpt_posterior(x = 24, model = cold_imp.obj)
-posterior_summary(diff_24)
+posterior_summary(diff_24) %>% round(3)
 
 diff_26 <- rpt_posterior(x = 26, model = hot_imp.obj) - rpt_posterior(x = 26, model = cold_imp.obj)
-posterior_summary(diff_26)
+posterior_summary(diff_26) %>% round(3)
 
 diff_28 <- rpt_posterior(x = 28, model = hot_imp.obj) - rpt_posterior(x = 28, model = cold_imp.obj)
-posterior_summary(diff_28)
+posterior_summary(diff_28) %>% round(3)
 
 diff_30 <- rpt_posterior(x = 30, model = hot_imp.obj) - rpt_posterior(x = 30, model = cold_imp.obj)
-posterior_summary(diff_30)
+posterior_summary(diff_30) %>% round(3)
 
 diff_32 <- rpt_posterior(x = 32, model = hot_imp.obj) - rpt_posterior(x = 32, model = cold_imp.obj)
-posterior_summary(diff_32)
+posterior_summary(diff_32) %>% round(3)
 
 diff_34 <- rpt_posterior(x = 34, model = hot_imp.obj) - rpt_posterior(x = 34, model = cold_imp.obj)
-posterior_summary(diff_34)
+posterior_summary(diff_34) %>% round(3)
 ```
 
 ```{r}
