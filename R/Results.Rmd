@@ -144,18 +144,16 @@ subset_hot <- sample(hot_ids, 10 , replace = F)
 ```
 
 ```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5}
-#Filter out the subset IDS
-imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %in% c(1,5,10)) %>% 
-  ggplot(aes(x = temp, y = mean_lnmr)) + 
-  geom_line(aes(group = id, colour = factor(treatment)), stat="smooth", method = "lm", lwd = 0.5, alpha = 0.5) + 
-  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha = 1, position=position_dodge(width = 0.3)) +
-  #geom_point(alpha = 0.2) + 
-  facet_wrap(~samp_session) + 
+#Raw data for thermal reaction norms of each treatment
+ data %>% filter(id %in% c(subset_cold, subset_hot)) %>% 
+  ggplot(aes(x = temp, y = lnmr)) + 
+  geom_line(aes(group = factor(treatment), colour = factor(treatment)), stat="smooth", method = "lm", lwd = 2, alpha =1) + 
+geom_point(aes(group = factor(treatment), colour = factor(treatment)), alpha = 0.2) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) + 
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
-  scale_y_continuous(breaks = c(seq(-6.5,-5.2, by = 0.25))) + 
+  scale_y_continuous(lim = c(-7.2,-5.3)) + 
   labs(x = "Temperature",
-       y = TeX("log VCO_2 min^{-1}"),
+       y = TeX("log VCO_2 mL min^{-1}"),
        #title = "Relative contribution of variance over age",
        colour =  "Treatment") + 
   theme_bw() +
@@ -164,11 +162,7 @@ imp_model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_sessi
         strip.text = element_text(size = 18),
         strip.background = element_blank())
 
-#Raw data
-brewer.pal(10, "PuOr")
-brewer.pal(10, "PRGn")
-brewer.pal(10, "RdGy")
-
+#Raw data for repeatability of slope
 hot_col <- c("red3", "tomato2", "sienna1", "orangered", "chocolate1", 
              "indianred2", "sandybrown", "firebrick1", "darkred", "saddlebrown")
 
@@ -185,7 +179,7 @@ raw_hot <- data %>% filter(treatment == 29 & samp_session %in% c(1,5,10)) %>% fi
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
   scale_y_continuous(lim = c(-7.2,-5.3)) + 
   labs(x = " ",
-       y = TeX("log VCO_2 min^{-1}"),
+       y = TeX("log VCO_2 mL min^{-1}"),
        #title = "Relative contribution of variance over age",
        colour =  "Treatment") + 
   theme_bw() +
@@ -204,7 +198,7 @@ raw_cold <- data %>% filter(id %in% subset_cold & samp_session %in% c(1,5,10)) %
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
   scale_y_continuous(lim = c(-7.2,-5.3)) + 
   labs(x = "Temperature",
-       y = TeX("log VCO_2 min^{-1}"),
+       y = TeX("log VCO_2 mL min^{-1}"),
        #title = "Relative contribution of variance over age",
        colour =  "Treatment") + 
   theme_bw() +
@@ -215,31 +209,6 @@ raw_cold <- data %>% filter(id %in% subset_cold & samp_session %in% c(1,5,10)) %
 ```
 
 ```{r}
-imp_a <- ggplot(rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
-  geom_point(position = position_dodge(0.5), size = 4) + 
-  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
-  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
-  ylim(c(0, 0.4)) + 
-  labs(x = "Temperature",
-       y = "Repeatability",
-       colour =  "Treatment") + 
-  theme_bw() +
-  my_theme + 
-  theme(legend.position = "none") 
-
-imp_b <- ggplot(rpt_data_mode, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
-  geom_point(position = position_dodge(0.5), size = 4) + 
-  geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
-  scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
-  ylim(c(0, 0.4)) + 
-  labs(x = "Temperature",
-       y = "Repeatability",
-       colour =  "Treatment") + 
-  theme_bw() +
-  my_theme + 
-  theme(legend.position = "none") 
-
-plot_layout(imp_a / imp_b)
 plot_layout(raw_hot / raw_cold)
 ```
 
