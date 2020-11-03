@@ -3,10 +3,10 @@ title: "Results"
 author: "Fonti Kar"
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    reference_docx: Style_guide.docx
   html_document:
     df_print: paged
+  word_document:
+    reference_docx: Style_guide.docx
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -58,10 +58,10 @@ mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Lon
 ```{r, eval = TRUE}
 #Tabulate the model coefficients for imp model
 #Read in model
-mod.imp.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.3")
+mod.imp.z3 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.z3")
 
 #Extract entire posterior
-mod.imp.3_post <- posterior_samples(mod.imp.3.obj)
+mod.imp.3_post <- posterior_samples(mod.imp.z3)
 #Names of each column
 colnames(mod.imp.3_post)[1:14]
 
@@ -70,19 +70,19 @@ colnames(mod.imp.3_post)[1:14]
 mod.imp.3_fixed <- mod.imp.3_post[1:7] %>% posterior_summary() %>% round(3) 
 
 #Getting the SD 
-mod.imp.3_sd <- posterior_samples(mod.imp.3.obj, "sd_")
+mod.imp.3_sd <- posterior_samples(mod.imp.z3, "sd_")
 mod.imp.3_var <- mod.imp.3_sd^2 
 names(mod.imp.3_var) <- str_replace(names(mod.imp.3_var), "sd", "var")
-mod.imp.3_var %>% posterior_summary() %>% round(3) 
+mod.imp.3_var %>% posterior_summary() %>% signif(3) 
 
 #Getting the COR to cov
-mod.imp.3_cov <- posterior_samples(mod.imp.3.obj, "cor_") * (mod.imp.3_sd[,1] * mod.imp.3_sd[,2])
+mod.imp.3_cov <- posterior_samples(mod.imp.z3, "cor_") * (mod.imp.3_sd[,1] * mod.imp.3_sd[,2])
 names(mod.imp.3_cov) <- str_replace(names(mod.imp.3_cov), "cor", "cov")
 
 mod.imp.3_cov %>% posterior_summary() %>% signif(3) 
 
 #Getting the residuals
-mod.imp.3_residuals <- ( posterior_samples(mod.imp.3.obj, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
+mod.imp.3_residuals <- ( posterior_samples(mod.imp.z3, "sigma")^2 ) %>% posterior_summary() %>% round(3) 
 
 #Bind these together
 mod.imp.3_coeffs <- rbind(mod.imp.3_fixed,
@@ -212,37 +212,39 @@ raw_cold <- data %>% filter(id %in% subset_cold & samp_session %in% c(1,5,10)) %
 plot_layout(raw_hot / raw_cold)
 ```
 
+```{r}
+#Repeatability of the slope for each treatment
+#Imputed
+cold.mod.imp.4 <- readRDS("output/rds/cold.mod.imp.z4")
+hot.mod.imp.4 <- readRDS("output/rds/hot.mod.imp.z4")
+
+brms_rptSlope_imp(model = cold.mod.imp.4, transform = "z", type = "mean")
+brms_rptSlope_imp(model = hot.mod.imp.4, transform = "z", type = "mean")
+```
 
 ```{r, eval = TRUE}
 #Treatment differences in temperature specific repeatabilty using imputation models
 # Read in models
-cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3")
-hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3")
+cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3.z")
+hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3.z")
 
 #Poster names
 names(posterior_samples(cold_imp.obj))[1:10]
 
 #Temp define:
 temp <- seq(24,34, by = 2)
+z_temps <- scale(temp)[,1]
 # map(temp, 
 #     brms_rpt_imp) #Can't get this to work
 
-imp_cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = cold_imp.obj)))
+imp_cold_rpt <- bind_rows(lapply(z_temps, function(x) brms_rpt_imp(x, model = cold_imp.obj)))
 imp_cold_rpt %<>%  mutate(treatment = "cold")
 
-imp_hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = hot_imp.obj)))
+imp_hot_rpt <- bind_rows(lapply(z_temps, function(x) brms_rpt_imp(x, model = hot_imp.obj)))
 imp_hot_rpt %<>%  mutate(treatment = "hot")
 
 imp_rpt_data <- bind_rows(imp_cold_rpt, imp_hot_rpt)
-
-#Posterior mode
-imp_cold_mode <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = cold_imp.obj, type = "mode")))
-imp_cold_mode %<>%  mutate(treatment = "cold")
-
-imp_hot_mode <- bind_rows(lapply(temp, function(x) brms_rpt_imp(x, model = hot_imp.obj, type = "mode")))
-imp_hot_mode %<>%  mutate(treatment = "hot")
-
-imp_rpt_mode <- bind_rows(imp_cold_mode, imp_hot_mode)
+imp_rpt_data %<>% mutate(temp = rep(seq(24,34, by = 2), 2))
 ```
 
 ```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
@@ -251,7 +253,7 @@ ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = 
   geom_point(position = position_dodge(0.5), size = 4) + 
   geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
-  ylim(c(0, 0.40)) + 
+  ylim(c(0, 0.4)) + 
   labs(x = "Temperature",
        y = "Repeatability",
        colour =  "Treatment") + 
@@ -330,7 +332,6 @@ ggplot(data = var_comps, aes(x = factor(temp), y = variance)) +
 
 ```
 
-
 ```{r, eval = TRUE, include= TRUE}
 #Tabulating repeatability at each temperature
 imp_rpt_data %<>% select(treatment, temp:Upper)
@@ -343,33 +344,58 @@ pander(imp_rpt_data,
 
 ```{r}
 #Are there actually any significant differences in T specific repeatability of average MR? Answer is no
-diff_24 <- rpt_posterior(x = 24, model = hot_imp.obj) - rpt_posterior(x = 24, model = cold_imp.obj)
-posterior_summary(diff_24) %>% round(3)
+temp <- seq(24,34, by = 2)
+z_temps <- scale(temp)[,1]
 
-diff_26 <- rpt_posterior(x = 26, model = hot_imp.obj) - rpt_posterior(x = 26, model = cold_imp.obj)
-posterior_summary(diff_26) %>% round(3)
+diff_24 <- rpt_posterior(x = z_temps[1], model = hot_imp.obj) - rpt_posterior(x = z_temps[1], model = cold_imp.obj)
+diff_24_df <- posterior_summary(diff_24) %>% round(3)
 
-diff_28 <- rpt_posterior(x = 28, model = hot_imp.obj) - rpt_posterior(x = 28, model = cold_imp.obj)
-posterior_summary(diff_28) %>% round(3)
+diff_26 <- rpt_posterior(x = z_temps[2], model = hot_imp.obj) - rpt_posterior(x = z_temps[2], model = cold_imp.obj)
+diff_26_df <- posterior_summary(diff_26) %>% round(3)
 
-diff_30 <- rpt_posterior(x = 30, model = hot_imp.obj) - rpt_posterior(x = 30, model = cold_imp.obj)
-posterior_summary(diff_30) %>% round(3)
+diff_28 <- rpt_posterior(x = z_temps[3], model = hot_imp.obj) - rpt_posterior(x = z_temps[3], model = cold_imp.obj)
+diff_28_df <- posterior_summary(diff_28) %>% round(3)
 
-diff_32 <- rpt_posterior(x = 32, model = hot_imp.obj) - rpt_posterior(x = 32, model = cold_imp.obj)
-posterior_summary(diff_32) %>% round(3)
+diff_30 <- rpt_posterior(x = z_temps[4], model = hot_imp.obj) - rpt_posterior(x = z_temps[4], model = cold_imp.obj)
+diff_30_df <- posterior_summary(diff_30) %>% round(3)
 
-diff_34 <- rpt_posterior(x = 34, model = hot_imp.obj) - rpt_posterior(x = 34, model = cold_imp.obj)
-posterior_summary(diff_34) %>% round(3)
+diff_32 <- rpt_posterior(x = z_temps[5], model = hot_imp.obj) - rpt_posterior(x = z_temps[5], model = cold_imp.obj)
+diff_32_df <- posterior_summary(diff_32) %>% round(3)
+
+diff_34 <- rpt_posterior(x = z_temps[6], model = hot_imp.obj) - rpt_posterior(x = z_temps[6], model = cold_imp.obj)
+diff_34_df <- posterior_summary(diff_34) %>% round(3)
+
+contrast_df <- rbind(diff_24_df,
+                     diff_26_df,
+                     diff_28_df,
+                     diff_30_df,
+                     diff_32_df,
+                     diff_34_df) %>% as.data.frame()
+
+contrast_df %<>% mutate(temp = seq(24,34, by = 2))
 ```
 
 ```{r}
-#Repeatability of the slope for each treatment
-#Imputed
-cold.mod.imp.4 <- readRDS("output/rds/cold.mod.imp.4")
-hot.mod.imp.4 <- readRDS("output/rds/hot.mod.imp.4")
+#Repeatability overall between developmental temperature groups
+#Read in models
+hot.mod.imp.5.z <- readRDS("output/rds/hot.mod.imp.5.z")
+cold.mod.imp.5.z <- readRDS("output/rds/cold.mod.imp.5.z")
 
-brms_rptSlope_imp(model = cold.mod.imp.4)
-brms_rptSlope_imp(model = hot.mod.imp.4)
+posterior_samples(hot.mod.imp.5.z)[,1:10] %>% names()
+
+#Calculate adjusted repeatability overall
+hot_post_5 <- posterior_samples(hot.mod.imp.5.z)
+cold_post_5 <- posterior_samples(cold.mod.imp.5.z)
+
+hot_overall_repeatability <- hot_post_5[,"sd_id__lnmr_Intercept"] / (hot_post_5[,"sd_id__lnmr_Intercept"] + hot_post_5[,"sd_samp_session__lnmr_Intercept"] + hot_post_5[,"sigma_lnmr"]) 
+
+cold_overall_repeatability <- cold_post_5[,"sd_id__lnmr_Intercept"] / (cold_post_5[,"sd_id__lnmr_Intercept"] + cold_post_5[,"sd_samp_session__lnmr_Intercept"] + cold_post_5[,"sigma_lnmr"]) 
+
+posterior_summary(hot_overall_repeatability) %>% round(3)
+posterior_summary(cold_overall_repeatability) %>% round(3)
+
+#Testing the contrast
+posterior_summary(hot_overall_repeatability - cold_overall_repeatability) %>% round(3)
 ```
 
 ## How does developmental temperature affect temperature specific repeatability
