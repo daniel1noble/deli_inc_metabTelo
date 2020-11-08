@@ -3,10 +3,10 @@ title: "ESM"
 author: "Fonti Kar"
 date: "`r Sys.Date()`"
 output:
-  html_document:
-    df_print: paged
   word_document:
     reference_docx: Style_guide.docx
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -22,7 +22,7 @@ sessionInfo()
 # Platform: x86_64-apple-darwin15.6.0 (64-bit)
 # Running under: macOS High Sierra 10.13.6
 
-pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr)
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr, bayestestR)
 
 my_theme <- theme(#legend.position = "none",
   legend.position = "bottom",
@@ -86,8 +86,8 @@ pander(Resid_compare_WAIC,
 #Testing whether treatments differed in their reaction norms
 #Tabulate the model coefficients for all CC model
 #Read in models
-cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.1.obj")
-cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.3.obj")
+cc_mod.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.z1.obj")
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.z3.obj")
 
 #Model without interaction
 #Extract entire posterior
@@ -171,7 +171,7 @@ cc_mod.3_coeffs <- cc_mod.3_coeffs[,c(4,1:3)]
 ```{r, eval = TRUE}
 #Tabulating the imputation model with main effects only
 #Read in model
-mod.imp.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.1")
+mod.imp.1.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.z1")
 
 #Extract entire posterior
 mod.imp.1_post <- posterior_samples(mod.imp.1.obj)
@@ -290,29 +290,31 @@ model_predictions %>% filter(id %in% c(subset_cold, subset_hot) & samp_session %
 ```{r, eval = TRUE}
 #Treatment differences in temperature specific repeatabilty using complete case models
 # Read in models
-cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
-cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
+cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj.z")
+cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj.z")
 
 #Poster names
 names(posterior_samples(cc_cold.2.obj))[1:10]
 
 #Temp define:
 temp <- seq(24,34, by = 2)
+z_temp <- scale(temp)[,1]
 #map(new_data %>% select(temp) %>% distinct(), brms_rpt) #Can't get this to work
 
-cold_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj)))
+cold_rpt <- bind_rows(lapply(z_temp, function(x) brms_rpt(x, model = cc_cold.2.obj)))
 cold_rpt %<>%  mutate(treatment = "cold")
 
-hot_rpt <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj)))
+hot_rpt <- bind_rows(lapply(z_temp, function(x) brms_rpt(x, model = cc_hot.2.obj)))
 hot_rpt %<>%  mutate(treatment = "hot")
 
 rpt_data <- bind_rows(cold_rpt, hot_rpt)
+rpt_data %<>% mutate(temp = rep(seq(24,34, by = 2),2)) 
 
 #Posterior mode
-cold_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_cold.2.obj, type = "mode")))
+cold_rpt_mode <- bind_rows(lapply(z_temp, function(x) brms_rpt(x, model = cc_cold.2.obj, type = "mode")))
 cold_rpt_mode %<>%  mutate(treatment = "cold")
 
-hot_rpt_mode <- bind_rows(lapply(temp, function(x) brms_rpt(x, model = cc_hot.2.obj, type = "mode")))
+hot_rpt_mode <- bind_rows(lapply(z_temp, function(x) brms_rpt(x, model = cc_hot.2.obj, type = "mode")))
 hot_rpt_mode %<>%  mutate(treatment = "hot")
 
 rpt_data_mode <- bind_rows(cold_rpt_mode, hot_rpt_mode)
@@ -346,8 +348,8 @@ pander(rpt_data,
 ```{r, eval = TRUE}
 #Model coefficients for hot and cold imputation models that were used to estimate T specific repeatability
 # Read in models
-cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3")
-hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3")
+cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3.z")
+hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3.z")
 
 #Extract entire posterior
 cold_imp.post <- posterior_samples(cold_imp.obj)
@@ -440,8 +442,8 @@ pander(hot_imp_coeffs,
 ```{r, eval = TRUE}
 #Model coefficients for hot and cold cc models that were used to estimate T specific repeatability
 # Read in models
-cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj")
-cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj")
+cc_cold.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.2.obj.z")
+cc_hot.2.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.2.obj.z")
 
 #Extract entire posterior
 cc_cold.post <- posterior_samples(cc_cold.2.obj)
@@ -533,8 +535,8 @@ pander(cc_hot_coeffs,
 ```{r, eval = TRUE}
 #Model coefficients for hot and cold imputation models that were used to estimate repeatbility of slopes
 # Read in models
-cold.mod.imp.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.4")
-hot.mod.imp.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.4")
+cold.mod.imp.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.z4")
+hot.mod.imp.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.z4")
 
 #Extract entire posterior
 cold_imp.4.post <- posterior_samples(cold.mod.imp.4)
@@ -628,8 +630,8 @@ pander(hot_imp.4_coeffs,
 ```{r}
 #Repeatability of the slope for each treatment
 #CC
-cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.4.obj")
-cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.4.obj")
+cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.z4.obj")
+cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.z4.obj")
 
 brms_rptSlope_cc(model = cc_cold.4.obj)
 brms_rptSlope_cc(model = cc_hot.4.obj)
@@ -638,8 +640,8 @@ brms_rptSlope_cc(model = cc_hot.4.obj)
 ```{r, eval = TRUE}
 #Model coefficients for hot and cold complete case that were used to estimate repeatbility of slopes
 # Read in models
-cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.4.obj")
-cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.4.obj")
+cc_cold.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_cold.z4.obj")
+cc_hot.4.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_hot.z4.obj")
 
 #Extract entire posterior
 cc_cold.4.post <- posterior_samples(cc_cold.4.obj)

@@ -22,7 +22,7 @@ sessionInfo()
 # Platform: x86_64-apple-darwin15.6.0 (64-bit)
 # Running under: macOS High Sierra 10.13.6
 
-pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr)
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr, tidybayes, bayestestR)
 
 my_theme <- theme(#legend.position = "none",
   legend.position = "bottom",
@@ -213,6 +213,143 @@ plot_layout(raw_hot / raw_cold)
 ```
 
 ```{r}
+
+#Extract average reaction norm for each treatment and get CI around them
+mod.imp.z3 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/mod.imp.z3")
+
+#Extract entire posterior
+mod.imp.3_post <- posterior_samples(mod.imp.z3)
+post = mod.imp.3_post
+
+#Names of each column
+names(mod.imp.3_post)[1:14]
+
+#Temp
+temp = seq(24,34, by = 2)
+z_temp = scale(temp)[,1]
+#For Cold 
+mod.3.imp.post["b_lnmr_Intercept"]
+
+mean_24 <- (post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
+      post["b_lnmr_z_temp"] * z_temp[1] +   #Temperature effect 
+      post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
+      post["b_lnmr_z_age"] * 0 + #Age effect + mean age
+      post["sd_id__lnmr_Intercept"] + 
+      post["sd_id__lnmr_z_temp"] * z_temp[1]  + 
+      post["sd_samp_session__lnmr_Intercept"]) 
+
+mean_26 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
+    post["b_lnmr_z_temp"] * z_temp[2] +   #Temperature effect 
+    post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
+    post["b_lnmr_z_age"] * 0 + #Age effect + mean age
+    post["sd_id__lnmr_Intercept"] + 
+    post["sd_id__lnmr_z_temp"] * z_temp[2] + 
+    post["sd_samp_session__lnmr_Intercept"]
+
+mean_28 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
+  post["b_lnmr_z_temp"] * z_temp[3] +   #Temperature effect 
+  post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
+  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
+  post["sd_id__lnmr_Intercept"] + 
+  post["sd_id__lnmr_z_temp"] * z_temp[3] + 
+  post["sd_samp_session__lnmr_Intercept"]
+
+mean_30 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
+  post["b_lnmr_z_temp"] * z_temp[4] +   #Temperature effect 
+  post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
+  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
+  post["sd_id__lnmr_Intercept"] + 
+  post["sd_id__lnmr_z_temp"] * z_temp[4] + 
+  post["sd_samp_session__lnmr_Intercept"]
+
+mean_32 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
+  post["b_lnmr_z_temp"] * z_temp[5] +   #Temperature effect 
+  post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
+  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
+  post["sd_id__lnmr_Intercept"] + 
+  post["sd_id__lnmr_z_temp"] * z_temp[5] + 
+  post["sd_samp_session__lnmr_Intercept"]
+
+mean_34 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
+  post["b_lnmr_z_temp"] * z_temp[6] +   #Temperature effect 
+  post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
+  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
+  post["sd_id__lnmr_Intercept"] + 
+  post["sd_id__lnmr_z_temp"] * z_temp[6] + 
+  post["sd_samp_session__lnmr_Intercept"]
+
+cold_fixed_pred <- rbind(posterior_summary(mean_24),
+                    posterior_summary(mean_26),
+                    posterior_summary(mean_28),
+                    posterior_summary(mean_30),
+                    posterior_summary(mean_32),
+                    posterior_summary(mean_34)) %>% as.data.frame()
+
+cold_fixed_pred %<>% mutate(temp = seq(24,34, by = 2),
+                            Treatment = "Cold")
+
+cold_fixed_pred %<>% rename(Lower = Q2.5,
+                       Upper = Q97.5,
+                       Temperature = temp)
+
+#For Hot
+mean_24_hot <- mean_24 + post[,"b_lnmr_treatment29"] * 1 + 
+  post[,"b_lnmr_treatment29:z_temp"] * 1
+
+mean_26_hot <- mean_26 + post[,"b_lnmr_treatment29"] * 1 + 
+  post[,"b_lnmr_treatment29:z_temp"] * 1
+
+mean_28_hot <- mean_28 + post[,"b_lnmr_treatment29"] * 1 + 
+  post[,"b_lnmr_treatment29:z_temp"] * 1
+
+mean_30_hot <- mean_30 + post[,"b_lnmr_treatment29"] * 1 + 
+  post[,"b_lnmr_treatment29:z_temp"] * 1
+
+mean_32_hot <- mean_32 + post[,"b_lnmr_treatment29"] * 1 + 
+  post[,"b_lnmr_treatment29:z_temp"] * 1
+
+mean_34_hot <- mean_34 + post[,"b_lnmr_treatment29"] * 1 + 
+  post[,"b_lnmr_treatment29:z_temp"] * 1
+
+hot_fixed_pred <- rbind(posterior_summary(mean_24_hot),
+                        posterior_summary(mean_26_hot),
+                        posterior_summary(mean_28_hot),
+                        posterior_summary(mean_30_hot),
+                        posterior_summary(mean_32_hot),
+                        posterior_summary(mean_34_hot)) %>% as.data.frame()
+
+hot_fixed_pred %<>% mutate(temp = seq(24,34, by = 2),
+                           Treatment = "Hot")
+
+hot_fixed_pred %<>% rename(Lower = Q2.5,
+                            Upper = Q97.5,
+                            Temperature = temp)
+
+#Bind together
+fixed_pred <- bind_rows(hot_fixed_pred, cold_fixed_pred)
+
+#Plot together
+ggplot() + 
+  geom_point(data = data, aes(x = temp, y = lnmr, group = factor(treatment), colour = factor(treatment)), alpha = 0.05) +
+  geom_point(data = fixed_pred, aes(x = Temperature, y = Estimate, colour = Treatment), size = 2) + 
+  geom_line(data = fixed_pred, aes(x = Temperature, y = Estimate, colour = Treatment), size = 1.2) +
+  geom_ribbon(data = fixed_pred, aes(x = Temperature, y = Estimate, ymin = Lower, ymax = Upper, colour = Treatment), alpha = 0.05, linetype = "dashed") +
+  scale_colour_manual(values = c("#2790F3", "#F24D2A", "#2790F3", "#F24D2A")) + 
+  scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
+  scale_y_continuous(lim = c(-7.2,-5.3)) + 
+  labs(x = "Temperature",
+       y = TeX("log VCO_2 mL min^{-1}"),
+       #title = "Relative contribution of variance over age",
+       colour =  "Treatment") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        strip.text = element_text(size = 18),
+        strip.background = element_blank())
+```
+
+
+```{r}
 #Repeatability of the slope for each treatment
 #Imputed
 cold.mod.imp.4 <- readRDS("output/rds/cold.mod.imp.z4")
@@ -220,6 +357,19 @@ hot.mod.imp.4 <- readRDS("output/rds/hot.mod.imp.z4")
 
 brms_rptSlope_imp(model = cold.mod.imp.4, transform = "z", type = "mean")
 brms_rptSlope_imp(model = hot.mod.imp.4, transform = "z", type = "mean")
+
+#Test for differences in repeatability of slope
+RslopeCold <-brms_rptSlope_imp(model = cold.mod.imp.4, transform = "z", type = "posterior")
+RslopeHot <- brms_rptSlope_imp(model = hot.mod.imp.4, transform = "z", type = "posterior")
+
+RslopeDiff <- RslopeHot - RslopeCold
+rope(RslopeDiff, ci = 0.95)
+plot(p_direction(RslopeDiff))
+((1- 0.5355) / 100)*2
+
+pdslopediff <- p_direction(RslopeDiff)
+pd_to_p(0.5355, direction = "two-sided")
+(1- 0.5355)*2
 ```
 
 ```{r, eval = TRUE}
@@ -249,7 +399,7 @@ imp_rpt_data %<>% mutate(temp = rep(seq(24,34, by = 2), 2))
 
 ```{r, eval = TRUE, include = TRUE, fig.height = 6.7, fig.width = 9.5, cache = TRUE}
 #Fig 2
-ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
+adjs_rpt <- ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = treatment)) + 
   geom_point(position = position_dodge(0.5), size = 4) + 
   geom_errorbar(aes(ymin = Lower, ymax = Upper), width = 0, position = position_dodge(0.5), size = 0.6) + 
   scale_colour_manual(values = c("#2790F3", "#F24D2A")) +
@@ -260,6 +410,8 @@ ggplot(imp_rpt_data, aes(x = factor(temp), y = rpt, group = treatment, colour = 
   theme_bw() +
   my_theme + 
   theme(legend.position = "none") 
+
+adjs_rpt
 ```
 
 ```{r}
@@ -290,48 +442,6 @@ imp_b <- ggplot(imp_rpt_mode, aes(x = factor(temp), y = rpt, group = treatment, 
 plot_layout(imp_a / imp_b)
 ```
 
-```{r}
-#Investigating the among and residual variance
-temp <- seq(24,34, by = 2)
-
-var_comp_cold <- bind_rows(lapply(temp, function(x) var_comp_imp(x, model = cold_imp.obj, var_comp = "id")),
-                           lapply(temp, function(x) var_comp_imp(x, model = cold_imp.obj, var_comp = "sigma")))
-var_comp_cold %<>%  mutate(treatment = "cold")
-
-var_comp_hot <- bind_rows(lapply(temp, function(x) var_comp_imp(x, model = hot_imp.obj, var_comp = "id")),
-                           lapply(temp, function(x) var_comp_imp(x, model = hot_imp.obj, var_comp = "sigma")))
-var_comp_hot %<>%  mutate(treatment = "hot")
-
-var_comps <- bind_rows(var_comp_cold, var_comp_hot)
-
-ggplot(data = var_comps, aes(x = factor(temp), y = variance)) + 
-  geom_col(aes(fill = var_comp), stat = "identity", position = "dodge") + 
-  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0), position = "dodge") + 
-  theme_bw() + 
-  facet_wrap(~treatment)
-
-ggplot(data = var_comps, aes(x = var_comp, y = variance)) + 
-  geom_col(aes(fill = var_comp),position = "dodge") + 
-  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0)) + 
-  theme_bw() + 
-  facet_wrap(~treatment)
-
-
-ggplot(data = var_comps, aes(x = var_comp, y = variance)) + 
-  geom_col(aes(fill = var_comp), stat = "identity",position = "dodge") + 
-  theme_bw() + 
-  facet_wrap(~treatment)
-
-
-ggplot(data = var_comps, aes(x = factor(temp), y = variance)) + 
-  geom_point(aes(colour = var_comp),  position = "dodge") + 
-  geom_errorbar(aes(ymin = Lower, ymax = Upper, width = 0), position = "dodge") + 
-  theme_bw() + 
-  facet_wrap(~treatment)
-
-
-```
-
 ```{r, eval = TRUE, include= TRUE}
 #Tabulating repeatability at each temperature
 imp_rpt_data %<>% select(treatment, temp:Upper)
@@ -343,36 +453,53 @@ pander(imp_rpt_data,
 ```
 
 ```{r}
-#Are there actually any significant differences in T specific repeatability of average MR? Answer is no
+#Are there actually any significant differences in T specific repeatability of average MR? Test properly with bayestestR
 temp <- seq(24,34, by = 2)
 z_temps <- scale(temp)[,1]
 
 diff_24 <- rpt_posterior(x = z_temps[1], model = hot_imp.obj) - rpt_posterior(x = z_temps[1], model = cold_imp.obj)
 diff_24_df <- posterior_summary(diff_24) %>% round(3)
+p_direction(diff_24)
+p_direction(diff_24) %>%  plot()
+((1 - p_direction(diff_24)$pd[1]))*2
+pd_to_p(p_direction(diff_24)$pd[1], direction = "two-sided")
+pd_to_p(p_direction(diff_24)$pd[1], direction = "one-sided")
+
 
 diff_26 <- rpt_posterior(x = z_temps[2], model = hot_imp.obj) - rpt_posterior(x = z_temps[2], model = cold_imp.obj)
 diff_26_df <- posterior_summary(diff_26) %>% round(3)
+p_direction(diff_26)
+((1 - p_direction(diff_26)$pd[1] ))*2
 
 diff_28 <- rpt_posterior(x = z_temps[3], model = hot_imp.obj) - rpt_posterior(x = z_temps[3], model = cold_imp.obj)
 diff_28_df <- posterior_summary(diff_28) %>% round(3)
+p_direction(diff_28)
+((1 - p_direction(diff_28)$pd[1] ))*2
 
 diff_30 <- rpt_posterior(x = z_temps[4], model = hot_imp.obj) - rpt_posterior(x = z_temps[4], model = cold_imp.obj)
 diff_30_df <- posterior_summary(diff_30) %>% round(3)
+p_direction(diff_30)
+((1 - p_direction(diff_30)$pd[1] ))*2
 
 diff_32 <- rpt_posterior(x = z_temps[5], model = hot_imp.obj) - rpt_posterior(x = z_temps[5], model = cold_imp.obj)
 diff_32_df <- posterior_summary(diff_32) %>% round(3)
+p_direction(diff_32)
+((1 - p_direction(diff_32)$pd[1]))*2
 
 diff_34 <- rpt_posterior(x = z_temps[6], model = hot_imp.obj) - rpt_posterior(x = z_temps[6], model = cold_imp.obj)
 diff_34_df <- posterior_summary(diff_34) %>% round(3)
+p_direction(diff_34)
+((1 - p_direction(diff_34)$pd[1])*2)
 
-contrast_df <- rbind(diff_24_df,
-                     diff_26_df,
-                     diff_28_df,
-                     diff_30_df,
-                     diff_32_df,
-                     diff_34_df) %>% as.data.frame()
+#Compile the posteriors together
+contrast_df <- cbind(diff_24,
+                     diff_26,
+                     diff_28,
+                     diff_30,
+                     diff_30,
+                     diff_34) %>% as.data.frame()
 
-contrast_df %<>% mutate(temp = seq(24,34, by = 2))
+names(contrast_df) <- c("24", "26", "28", "30", "32", "34")
 ```
 
 ```{r}
@@ -387,15 +514,240 @@ posterior_samples(hot.mod.imp.5.z)[,1:10] %>% names()
 hot_post_5 <- posterior_samples(hot.mod.imp.5.z)
 cold_post_5 <- posterior_samples(cold.mod.imp.5.z)
 
-hot_overall_repeatability <- hot_post_5[,"sd_id__lnmr_Intercept"] / (hot_post_5[,"sd_id__lnmr_Intercept"] + hot_post_5[,"sd_samp_session__lnmr_Intercept"] + hot_post_5[,"sigma_lnmr"]) 
+hot_overall_repeatability <- hot_post_5[,"sd_id__lnmr_Intercept"]^2 / (hot_post_5[,"sd_id__lnmr_Intercept"]^2 + hot_post_5[,"sd_samp_session__lnmr_Intercept"]^2 + hot_post_5[,"sigma_lnmr"]^2) 
 
-cold_overall_repeatability <- cold_post_5[,"sd_id__lnmr_Intercept"] / (cold_post_5[,"sd_id__lnmr_Intercept"] + cold_post_5[,"sd_samp_session__lnmr_Intercept"] + cold_post_5[,"sigma_lnmr"]) 
+cold_overall_repeatability <- cold_post_5[,"sd_id__lnmr_Intercept"]^2 / (cold_post_5[,"sd_id__lnmr_Intercept"]^2 + cold_post_5[,"sd_samp_session__lnmr_Intercept"]^2 + cold_post_5[,"sigma_lnmr"]^2) 
 
 posterior_summary(hot_overall_repeatability) %>% round(3)
 posterior_summary(cold_overall_repeatability) %>% round(3)
 
 #Testing the contrast
 posterior_summary(hot_overall_repeatability - cold_overall_repeatability) %>% round(3)
+
+#Try out bayestestR
+#Test whether the difference is signficantly diff from zero
+rope_range(hot_overall_repeatability - cold_overall_repeatability)
+
+rope(hot_overall_repeatability - cold_overall_repeatability, range = rope_range(hot_overall_repeatability - cold_overall_repeatability),ci=0.89)
+
+diff <-  hot_overall_repeatability - cold_overall_repeatability
+diff[diff > 0] %>%  length() / length(hot_overall_repeatability)
+p_direction(diff)
+plot(p_direction(diff))
+
+
+#Compile in dataframe to maybe a piechart
+marg_dat <- rbind(posterior_summary(hot_overall_repeatability),
+                  posterior_summary(cold_overall_repeatability)) %>% as.data.frame()
+
+marg_dat$treatment = NA
+marg_dat[1,5] <- "Hot"
+marg_dat[2,5] <- "Cold"
+
+#Plot barcharts
+overall <- ggplot(data = marg_dat, aes(x = treatment, y = Estimate)) + 
+  geom_col(aes(fill = treatment)) + 
+  geom_errorbar(aes(ymin = Q2.5, ymax = Q97.5), width = 0.1, size = 0.5) + 
+  scale_fill_manual(values = c("#2790F3", "#F24D2A")) + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+#Compile data for violins (entire posterior)
+vio_dat <- bind_cols(cold_overall_repeatability, hot_overall_repeatability) %>% as.data.frame()
+vio_dat %<>% rename("Cold" = ...1, 
+                   "Hot" = ...2)
+vio_dat_long <- tidyr::pivot_longer(vio_dat, Cold:Hot, names_to = "Treatment", values_to = "Repeatability") %>% arrange(Treatment) 
+
+vio_overall <- ggplot(data = vio_dat_long, aes(x = Treatment, y = Repeatability)) + 
+  geom_violin(aes(fill = Treatment), trim = F) + 
+  geom_jitter(shape=16, position=position_jitter(0.1), color = "black", alpha = 0.1) +
+  # stat_summary(fun.data=mean_sdl, mult=1, 
+  #                geom="pointrange", colour = "white") + 
+  geom_boxplot(fill="black", colour = "white",
+            outlier.shape=NA, width = 0.05, alpha = 0.6) +
+  scale_fill_manual(values = c("#2790F3", "#F24D2A")) + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+
+#Plot the contrast
+contrast_all <- bind_cols(contrast_df, hot_overall_repeatability - cold_overall_repeatability)
+contrast_all %<>% rename(Overall = ...7)
+
+#Pivot long
+contrast_long <- tidyr::pivot_longer(contrast_all, cols = 1:7, names_to ="Temperature", values_to = "Diff_Repeatability") %>% arrange(Temperature)
+
+
+#Set order 
+contrast_long$Temperature <- factor(contrast_long$Temperature, levels = c("Overall", "34", "32","30", "28","26", "24"  ))
+
+
+ggplot(contrast_long, aes(x = Temperature, y = Diff_Repeatability)) + 
+  stat_halfeye(aes(fill = Temperature, colour = Temperature)) + 
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  scale_fill_manual(values = c("black", rep("grey", 6))) +
+  scale_colour_manual(values = c("grey", rep("black", 6)))+
+  theme_bw() +
+  labs(x = "",
+       y = "Difference in Repeatability\n (Hot - Cold)") + 
+  my_theme + 
+  theme(legend.position = "none") +
+  theme(legend.position = "none",
+        axis.title.y = element_blank())
+
+contrast <- ggplot(contrast_long, aes(x = Temperature, y = Diff_Repeatability)) + 
+  stat_halfeye(aes(fill = stat(y < 0), shape = Temperature)) + 
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  coord_flip() +
+  scale_fill_manual(values = c("grey12","grey")) +
+  scale_shape_manual(values = c(23, 16, 16, 16, 16, 16, 16)) +
+  theme_bw() +
+  labs(x = "",
+       y = "Difference in Repeatability\n (Hot - Cold)") + 
+  my_theme + 
+  theme(legend.position = "none") +
+  theme(legend.position = "none",
+        axis.title.y = element_blank())
+
+  # ggplot(contrast_long, aes(x = temp, y = Estimate)) + 
+  # geom_point(aes(shape = temp), size = c(4,4,4,4,4,4,6), fill = "black") + 
+  # geom_errorbar(aes(ymin = Q2.5, ymax = Q97.5), width = 0, size = 0.6) + 
+  # geom_hline(yintercept = 0, linetype = "dashed") +
+  # ylim(c(-0.4, 0.25)) + 
+  # scale_shape_manual(values = c(23, 16, 16, 16, 16, 16, 16 )) +
+  # labs(x = "",
+  #      y = "Difference in Repeatability\n (Hot - Cold)") + 
+  # coord_flip() + 
+  # theme_bw() +
+  # my_theme + 
+  # theme(legend.position = "none") +
+  #   theme(legend.position = "none",
+  #       axis.title.y = element_blank())
+```
+
+
+```{r}
+#Combined model and testing differences in overall repeatability
+cc_mod.combined.2.het.obj <- readRDS("output/rds/cc_mod.combined.2.het.obj")
+
+#What is the repeatability overall for each treatment
+comb_post <- posterior_samples(cc_mod.combined.2.het.obj)
+names(comb_post)[1:11]
+
+#Hot
+(comb_post[,"sd_id__Intercept:treatment29"]^2 / (comb_post[,"sd_id__Intercept:treatment29"]^2  + comb_post[,"b_sigma_Intercept"]^2  + comb_post[,"b_sigma_treatment29"]^2)) %>% posterior_summary() %>% round(3)
+
+#Cold
+(comb_post[,"sd_id__Intercept:treatment23"]^2 / (comb_post[,"sd_id__Intercept:treatment23"]^2  + comb_post[,"b_sigma_Intercept"]^2)) %>% posterior_summary() %>% round(3)
+
+
+#Hypothesis testing
+h <- paste("sd_id__Intercept:treatment29^2 / (sd_id__Intercept:treatment29^2 +",
+           "b_sigma_Intercept^2 + b_sigma_treatment29^2) > 0")
+(hyp2 <- hypothesis(cc_mod.combined.2.het.obj, h, class = NULL))
+plot(hyp2)
+
+h2 <- paste("sd_id__Intercept:treatment23^2 / (sd_id__Intercept:treatment23^2 +",
+           "b_sigma_Intercept^2) > 0")
+(hyp3 <- hypothesis(cc_mod.combined.2.het.obj, h2, class = NULL))
+plot(hyp2)
+
+
+h3 <- paste("sd_id__Intercept:treatment23^2 / (sd_id__Intercept:treatment23^2 +",
+           "b_sigma_Intercept^2) > sd_id__Intercept:treatment29^2 / (sd_id__Intercept:treatment29^2 +",
+           "b_sigma_Intercept^2 + b_sigma_treatment29^2)")
+(hyp4 <- hypothesis(cc_mod.combined.2.het.obj, h3, class = NULL))
+plot(hyp4)
+```
+
+```{r}
+#Investigating the among and residual variance
+# Read in models
+cold_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cold.mod.imp.3.z")
+hot_imp.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/hot.mod.imp.3.z")
+
+temp <- seq(24,34, by = 2)
+z_temps <- scale(temp)[,1]
+
+var_comp_cold <- bind_rows(lapply(z_temps, function(x) var_comp_imp(x, model = cold_imp.obj, var_comp = "id")))
+var_comp_cold %<>%  mutate(treatment = "cold",
+                           temp = seq(24,34, by = 2))
+
+var_comp_hot <- bind_rows(lapply(z_temps, function(x) var_comp_imp(x, model = hot_imp.obj, var_comp = "id")))
+var_comp_hot %<>%  mutate(treatment = "hot",
+                          temp = seq(24,34, by = 2))
+
+var_comps <- bind_rows(var_comp_cold, var_comp_hot)
+
+#Overall
+#Read in models
+hot.mod.imp.5.z <- readRDS("output/rds/hot.mod.imp.5.z")
+cold.mod.imp.5.z <- readRDS("output/rds/cold.mod.imp.5.z")
+
+#Actual values
+posterior_samples(hot.mod.imp.5.z, "sd_id") %>% posterior_summary() %>% round(3)
+posterior_samples(cold.mod.imp.5.z, "sd_id") %>% posterior_summary() %>% round(3)
+
+#Imputed
+mod.imp.het.comb <- readRDS("output/rds/mod.imp.het.comb")
+
+#Actual values
+posterior_samples(mod.imp.het.comb, "sd_id") %>% posterior_summary() %>% round(3) #among id
+posterior_samples(mod.imp.het.comb, "sigma") %>% posterior_summary() %>% round(3) #residual
+
+amid_post <- bind_cols(posterior_samples(mod.imp.het.comb, "sd_id__lnmr_Intercept:treatment23")^2,
+posterior_samples(mod.imp.het.comb, "sd_id__lnmr_Intercept:treatment29")^2) 
+names(amid_post) <- c("Cold", "Hot")
+amid_post_long <- tidyr::pivot_longer(amid_post, Cold:Hot, names_to = "Treatment", values_to = "Among ID Variance") %>% arrange(Treatment) 
+
+sigma_post <- bind_cols(posterior_samples(mod.imp.het.comb, "b_sigma_lnmr_Intercept")^2,
+(posterior_samples(mod.imp.het.comb, "b_sigma_lnmr_Intercept") + posterior_samples(mod.imp.het.comb, "sd_id__lnmr_Intercept:treatment29"))^2) 
+names(sigma_post) <- c("Cold", "Hot")
+sigma_post_long <- tidyr::pivot_longer(sigma_post, Cold:Hot, names_to = "Treatment", values_to = "Residual") %>% arrange(Treatment) 
+
+#Put together
+var_comp_compare <- bind_cols(amid_post_long, sigma_post_long[,2])
+names(var_comp_compare)
+var_comp_compare_long <- tidyr::pivot_longer(var_comp_compare, 2:3, names_to = "Type", values_to = "Variance") %>% arrange(Treatment) 
+
+#Plot
+#vio_overall <- 
+ggplot(data = var_comp_compare_long, aes(x = Treatment, y = Variance)) + 
+  geom_violin(aes(fill = Treatment), trim = F) + 
+  geom_jitter(shape=16, position=position_jitter(0.1), color = "black", alpha = 0.1) +
+  # stat_summary(fun.data=mean_sdl, mult=1, 
+  #                geom="pointrange", colour = "white") + 
+  geom_boxplot(fill="black", colour = "white",
+               outlier.shape=NA, width = 0.05, alpha = 0.6) +
+  scale_fill_manual(values = c("#2790F3", "#F24D2A")) + 
+  facet_wrap(~Type, scales = "free") + 
+  theme_bw() +
+  my_theme + 
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank())
+
+#Diff AMID
+AID_diff <- posterior_samples(hot.mod.imp.5.z, "sd_id") - posterior_samples(cold.mod.imp.5.z, "sd_id")
+p_direction(AID_diff)
+
+#Diff residual
+sigma_diff <- (posterior_samples(mod.imp.het.comb, "b_sigma_lnmr_Intercept")^2 - (posterior_samples(mod.imp.het.comb, "b_sigma_lnmr_Intercept")^2 + posterior_samples(mod.imp.het.comb, "sd_id__lnmr_Intercept:treatment29")^2))
+p_direction(sigma_diff) %>% plot()
+```
+
+```{r}
+#Put figures in a panel
+plot_layout(adjs_rpt + vio_overall/contrast)
+
+#plot_layout(adjs_rpt + overall/contrast)
 ```
 
 ## How does developmental temperature affect temperature specific repeatability
