@@ -7,6 +7,8 @@ output:
     df_print: paged
   word_document:
     reference_docx: Style_guide.docx
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -233,50 +235,50 @@ mod.3.imp.post["b_lnmr_Intercept"]
 mean_24 <- (post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
       post["b_lnmr_z_temp"] * z_temp[1] +   #Temperature effect 
       post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
-      post["b_lnmr_z_age"] * 0 + #Age effect + mean age
-      post["sd_id__lnmr_Intercept"] + 
-      post["sd_id__lnmr_z_temp"] * z_temp[1]  + 
-      post["sd_samp_session__lnmr_Intercept"]) 
+      post["b_lnmr_z_age"] * 0) #+ #Age effect + mean age
+      # post["sd_id__lnmr_Intercept"] + 
+      # post["sd_id__lnmr_z_temp"] * z_temp[1]  + 
+      # post["sd_samp_session__lnmr_Intercept"]) 
 
 mean_26 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
     post["b_lnmr_z_temp"] * z_temp[2] +   #Temperature effect 
     post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
-    post["b_lnmr_z_age"] * 0 + #Age effect + mean age
-    post["sd_id__lnmr_Intercept"] + 
-    post["sd_id__lnmr_z_temp"] * z_temp[2] + 
-    post["sd_samp_session__lnmr_Intercept"]
+    post["b_lnmr_z_age"] * 0 #+ #Age effect + mean age
+    # post["sd_id__lnmr_Intercept"] + 
+    # post["sd_id__lnmr_z_temp"] * z_temp[2] + 
+    # post["sd_samp_session__lnmr_Intercept"]
 
 mean_28 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
   post["b_lnmr_z_temp"] * z_temp[3] +   #Temperature effect 
   post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
-  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
-  post["sd_id__lnmr_Intercept"] + 
-  post["sd_id__lnmr_z_temp"] * z_temp[3] + 
-  post["sd_samp_session__lnmr_Intercept"]
+  post["b_lnmr_z_age"] * 0 #+ #Age effect + mean age
+  # post["sd_id__lnmr_Intercept"] + 
+  # post["sd_id__lnmr_z_temp"] * z_temp[3] + 
+  # post["sd_samp_session__lnmr_Intercept"]
 
 mean_30 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
   post["b_lnmr_z_temp"] * z_temp[4] +   #Temperature effect 
   post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
-  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
-  post["sd_id__lnmr_Intercept"] + 
-  post["sd_id__lnmr_z_temp"] * z_temp[4] + 
-  post["sd_samp_session__lnmr_Intercept"]
+  post["b_lnmr_z_age"] * 0 #+ #Age effect + mean age
+  # post["sd_id__lnmr_Intercept"] + 
+  # post["sd_id__lnmr_z_temp"] * z_temp[4] + 
+  # post["sd_samp_session__lnmr_Intercept"]
 
 mean_32 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
   post["b_lnmr_z_temp"] * z_temp[5] +   #Temperature effect 
   post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
-  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
-  post["sd_id__lnmr_Intercept"] + 
-  post["sd_id__lnmr_z_temp"] * z_temp[5] + 
-  post["sd_samp_session__lnmr_Intercept"]
+  post["b_lnmr_z_age"] * 0 #+ #Age effect + mean age
+  # post["sd_id__lnmr_Intercept"] + 
+  # post["sd_id__lnmr_z_temp"] * z_temp[5] + 
+  # post["sd_samp_session__lnmr_Intercept"]
 
 mean_34 <- post["b_lnmr_Intercept"] +  #Intercept represents mean MR for cold
   post["b_lnmr_z_temp"] * z_temp[6] +   #Temperature effect 
   post["bsp_lnmr_miz_lnmass"] * 0 + #Mass effect * mean age
-  post["b_lnmr_z_age"] * 0 + #Age effect + mean age
-  post["sd_id__lnmr_Intercept"] + 
-  post["sd_id__lnmr_z_temp"] * z_temp[6] + 
-  post["sd_samp_session__lnmr_Intercept"]
+  post["b_lnmr_z_age"] * 0 #+ #Age effect + mean age
+  # post["sd_id__lnmr_Intercept"] + 
+  # post["sd_id__lnmr_z_temp"] * z_temp[6] + 
+  # post["sd_samp_session__lnmr_Intercept"]
 
 cold_fixed_pred <- rbind(posterior_summary(mean_24),
                     posterior_summary(mean_26),
@@ -294,22 +296,22 @@ cold_fixed_pred %<>% rename(Lower = Q2.5,
 
 #For Hot
 mean_24_hot <- mean_24 + post[,"b_lnmr_treatment29"] * 1 + 
-  post[,"b_lnmr_treatment29:z_temp"] * 1
+  post[,"b_lnmr_treatment29:z_temp"] * z_temp[1]
 
 mean_26_hot <- mean_26 + post[,"b_lnmr_treatment29"] * 1 + 
-  post[,"b_lnmr_treatment29:z_temp"] * 1
+  post[,"b_lnmr_treatment29:z_temp"] * z_temp[2]
 
 mean_28_hot <- mean_28 + post[,"b_lnmr_treatment29"] * 1 + 
-  post[,"b_lnmr_treatment29:z_temp"] * 1
+  post[,"b_lnmr_treatment29:z_temp"] *z_temp[3]
 
 mean_30_hot <- mean_30 + post[,"b_lnmr_treatment29"] * 1 + 
-  post[,"b_lnmr_treatment29:z_temp"] * 1
+  post[,"b_lnmr_treatment29:z_temp"] * z_temp[4]
 
 mean_32_hot <- mean_32 + post[,"b_lnmr_treatment29"] * 1 + 
-  post[,"b_lnmr_treatment29:z_temp"] * 1
+  post[,"b_lnmr_treatment29:z_temp"] * z_temp[5]
 
 mean_34_hot <- mean_34 + post[,"b_lnmr_treatment29"] * 1 + 
-  post[,"b_lnmr_treatment29:z_temp"] * 1
+  post[,"b_lnmr_treatment29:z_temp"] * z_temp[6]
 
 hot_fixed_pred <- rbind(posterior_summary(mean_24_hot),
                         posterior_summary(mean_26_hot),
@@ -336,7 +338,8 @@ ggplot() +
   geom_ribbon(data = fixed_pred, aes(x = Temperature, y = Estimate, ymin = Lower, ymax = Upper, colour = Treatment), alpha = 0.05, linetype = "dashed") +
   scale_colour_manual(values = c("#2790F3", "#F24D2A", "#2790F3", "#F24D2A")) + 
   scale_x_continuous(breaks = c(seq(24,34, by = 2))) + 
-  scale_y_continuous(lim = c(-7.2,-5.3)) + 
+  scale_y_continuousprior_summary(mod.imp.z3)
+(lim = c(-7.2,-5.3)) + 
   labs(x = "Temperature",
        y = TeX("log VCO_2 mL min^{-1}"),
        #title = "Relative contribution of variance over age",
