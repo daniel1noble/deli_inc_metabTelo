@@ -1,0 +1,117 @@
+---
+title: "Missing data imputatation"
+author: "Fonti Kar"
+date: "8/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+sessionInfo()
+
+# R version 3.6.1 (2019-07-05)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS High Sierra 10.13.6
+
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, MASS, patchwork, GGally, psych, brms, mi)
+```
+
+## Read in data
+```{r}
+mi_data <-read.csv("data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
+
+data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR.csv", stringsAsFactors = F)
+
+raw_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/curve_data/ldeli_tinc_integrate.csv", stringsAsFactors = F)
+```
+
+## Pattern of missingness
+```{r}
+my_traits <- select(mi_data, temp:lnmr)
+
+my_traits %>% missing_data.frame() %>% image()
+```
+
+## Correlation among variables
+```{r}
+psych::corr.test(my_traits) %>% print(short = F)
+```
+
+## What temperatures are missing at each samp_session
+```{r}
+missing_temp <- mi_data %>% group_by(samp_session, treatment, temp) %>% summarise(n_missing = length(is.na(lnmr))) %>% as.data.frame()
+
+ggplot(missing_temp, aes(x = temp, y = n_missing)) + 
+  geom_point(aes(group = factor(treatment), colour = factor(treatment)), position = position_dodge(1)) + 
+  scale_x_continuous(breaks = seq(24,34, by = 2)) + 
+  facet_wrap(~samp_session) + 
+  theme_bw()
+
+missing_temp_id <- mi_data %>% group_by(samp_session, id, treatment, temp) %>% summarise(n_missing = length(is.na(lnmr))) %>% as.data.frame()
+
+mi_data %>% filter(id == "ld0449")
+```
+
+## What temps do I have?
+
+```{r}
+present_temps <- raw_data %>% group_by(samp_session, batch, incb_num, treatment, incb_temp)%>% 
+  summarise(n_obs = length(!is.na(co2_samp_1))) %>% as.data.frame()
+
+raw_data %>% group_by(samp_session, batch, incb_num, treatment, incb_temp)%>% 
+  summarise(n_lizards = length(id)) %>% as.data.frame()
+
+
+#Batch 1, incbuator 1
+#Should have 12 lizards
+present_temps %>% filter(batch == 1 & incb_num == 1) %>% 
+  ggplot(aes(x = factor(incb_temp), y = n_obs)) + 
+  geom_point(aes(colour = factor(treatment)), position = position_dodge(0.5)) + 
+  facet_wrap(~samp_session) + 
+  scale_y_continuous(breaks = seq(5,15, by = 1)) + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+#Batch 2, incubator 2
+#Should have 13 lizards
+present_temps %>% filter(batch == 1 & incb_num == 2) %>% 
+  ggplot(aes(x = factor(incb_temp), y = n_obs)) + 
+  geom_point(aes(colour = factor(treatment)), position = position_dodge(0.5)) + 
+  facet_wrap(~samp_session) + 
+  scale_y_continuous(breaks = seq(5,15, by = 1)) + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+#Batch 2
+present_temps %>% filter(batch == 2 & incb_num == 1) %>% 
+  ggplot(aes(x = factor(incb_temp), y = n_obs)) + 
+  geom_point(aes(colour = factor(treatment)), position = position_dodge(0.5)) + 
+  facet_wrap(~samp_session) + 
+  scale_y_continuous(breaks = seq(5,15, by = 1)) + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+present_temps %>% filter(batch == 2 & incb_num == 2) %>% 
+  ggplot(aes(x = factor(incb_temp), y = n_obs)) + 
+  geom_point(aes(colour = factor(treatment)), position = position_dodge(0.5)) + 
+  facet_wrap(~samp_session) + 
+  scale_y_continuous(breaks = seq(1,15, by = 1)) + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+raw_data %>% filter(samp_session == 2 & batch == 2 & incb_num == 2 & treatment == 29)
+
+
+#Do cold lizards just have more obs
+treatment_obs <- raw_data %>% group_by(samp_session, treatment, incb_temp)%>% 
+  summarise(n_obs = length(!is.na(co2_samp_1))) %>% as.data.frame() %>% arrange(treatment)
+treatment_obs %>% group_by(treatment) %>% summarise(all_obs = sum(n_obs))
+```
+
+```{r}
+ggplot(data, aes(x = age, y = lnmr)) + 
+  geom_point() + 
+  geom_line(aes(colour = factor(treatment)), stat = "smooth", method = "lm")
+```
+

@@ -1,0 +1,1177 @@
+---
+title: "Data cleaning"
+author: "Fonti Kar"
+date: "8/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      include = FALSE)
+rm(list=ls())
+sessionInfo()
+
+# R version 3.6.1 (2019-07-05)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS High Sierra 10.13.6
+
+pacman::p_load(dplyr, magrittr, ggplot2, purrr,  GGally, mice, janitor, patchwork, lubridate, stringr, tidyr)
+
+source("R/functions/metabR_helper_functions.R")
+```
+## To do:
+Check outliers
+Check distributions
+Transform variables
+Transform data format from long to wide
+Overlap with G matrix and liz id
+
+## Read in data
+```{r}
+data <- read.csv("data/curve_data/ldeli_tinc_integrate.csv", stringsAsFactors = F)
+str(data)
+summary(data)
+```
+
+```{r}
+data %>% filter(samp_session == 10 & batch == 2 & incb_temp %in% c(24, 34))
+data %>% filter(samp_session == 10 & batch == 2 & incb_temp == 24) %>% pull(co2_samp_1) < data %>% filter(samp_session == 10 & batch == 2 & incb_temp == 34) %>% pull(co2_samp_1)
+
+data %>% filter(samp_session == 10 & batch == 2 & incb_temp == 24) %>% pull(co2_samp_2) < data %>% filter(samp_session == 10 & batch == 2 & incb_temp == 34) %>% pull(co2_samp_2)
+```
+
+
+## Replace lizard mass if there is a liz_mass remeasure
+```{r}
+remeasure_mass <- data %>% filter(! is.na(lizmass_remeasure)) %>% select(date, samp_session, id, treatment, lizmass, lizmass_remeasure)
+
+#Number of observations that will be changed
+nrow(remeasure_mass) #52 observations
+remeasure_mass %>% select(date, samp_session, id, treatment) %>% distinct() %>% nrow() #26 lizards
+
+#Check the distribution of remeasure_mass
+hist(remeasure_mass$lizmass_remeasure) #looks good
+
+#Overwriting mass
+data2 <- data
+data2 %<>% mutate(lizmass = ifelse(! is.na(lizmass_remeasure), lizmass_remeasure, data2$lizmass))
+```
+
+## Following up on negative mass values 
+Strategy: Set as NA and impute later on using mice/mi 
+```{r}
+summary(data2$lizmass)
+
+#Which lizards and when?
+data2 %>% filter(lizmass < 0)
+
+#Overwrite lizmass with NA
+data2 %>% mutate(lizmass = ifelse(lizmass < 0, NA, data2$lizmass)) %>% summary() 
+data2 %<>% mutate(lizmass = ifelse(lizmass < 0, NA, data2$lizmass)) 
+```
+
+## Treatment summary and check
+```{r}
+data2 %>% select(id, treatment) %>% distinct()
+
+#Which lizard is NA treatment? 
+data2 %>% filter(is.na(treatment)) #Just an empty row of data
+
+#Exclude empty row of data
+nrow(data2)
+data2 %>% filter(!is.na(treatment)) %>% nrow()
+data3 <- data2 %>% filter(!is.na(treatment))
+
+#Treatment summaries
+data3 %>% select(id, treatment) %>% distinct() %>% tabyl(treatment) #26 cold lizards, 25 hot lizards
+```
+
+## Check for outliers in uncorrected data
+```{r}
+#Make observation ID for Cleveland plot 
+data3 %<>% mutate(obs = seq(1, nrow(data3)))
+
+#Descriptive statistics mean and SD
+data3 %>% summarise(mean_mass = mean(lizmass, na.rm = T),
+                    sd_mass = sd(lizmass, na.rm = T),
+                    mean_mrc = mean(co2_samp_control, na.rm = T),
+                    sd_mrc = sd(co2_samp_control, na.rm = T),
+                    mean_mr1 = mean(co2_samp_1, na.rm = T),
+                    sd_mr1 = sd(co2_samp_1, na.rm = T),
+                    mean_mr2 = mean(co2_samp_2, na.rm = T),
+                    sd_mr2 = sd(co2_samp_2, na.rm = T)) %>% signif(3)
+
+#Hist/Density plots
+#Mass
+#Values < 0.1 worth investigating
+ggplot(data3, aes(x = lizmass, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) 
+
+#Control
+ggplot(data3, aes(x = co2_samp_control, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) +
+  scale_x_continuous(breaks = seq(0, max(data3$co2_samp_control, na.rm = T), by = 0.0001))
+  
+#MR1
+ggplot(data3, aes(x = co2_samp_1, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) +
+  scale_x_continuous(breaks = seq(0, max(data3$co2_samp_2, na.rm = T), by = 0.0001))
+
+#MR2
+ggplot(data3, aes(x = co2_samp_2, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) + 
+  scale_x_continuous(breaks = seq(0, max(data3$co2_samp_2, na.rm = T), by = 0.0001))
+
+#MR Values > 0.0025 worth investigating
+data3 %>% filter(co2_samp_1 > 0.0025 | co2_samp_2 > 0.0025)
+#Boxplots 
+#Mass
+ggplot(data3, aes(x = as.factor(treatment), y = lizmass)) + 
+  geom_boxplot()
+
+#Control
+ggplot(data3, aes(x = as.factor(treatment), y = co2_samp_control)) + 
+  geom_boxplot()
+
+#MR1
+ggplot(data3, aes(x = as.factor(treatment), y = co2_samp_1)) + 
+  geom_boxplot()
+
+#MR2
+ggplot(data3, aes(x = as.factor(treatment), y = co2_samp_2)) +
+  geom_boxplot()
+
+#Masses less than 0.1 is concerning and I need to follow these up
+#Check if they are the same individuals and consistent over time
+data3 %>% filter(lizmass < 0.1) %>% select(id, treatment, samp_session) %>% distinct()
+
+#Clevland plots
+#Mass
+ggplot(data3, aes(lizmass, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)+ 3*(0.0503), colour = "red")) +
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)- 3*(0.0503), colour = "red")) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(0, max(data3$lizmass, na.rm = T), by = 0.05))
+
+#Explore values greater/less than 3SD in Mass
+data3 %>% filter(lizmass > 0.40 | lizmass < 0.10)
+
+#Control sample
+ggplot(data3, aes(co2_samp_control, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_control, na.rm = T)), colour = "red",size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_control, na.rm = T)+ 3*(0.00014), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_control, na.rm = T)- 3*(0.00014), colour = "red")) +
+  theme_bw()  
+
+#Explore values greater/less than 3SD in Control sample
+data3 %>% filter(co2_samp_control > 0.0005)
+
+#MR1
+ggplot(data3, aes(co2_samp_1, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_1, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_1, na.rm = T)+ 3*(0.000369), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_1, na.rm = T)- 3*(0.000369), colour = "red")) +
+  scale_x_continuous(breaks = seq(0, max(data3$co2_samp_1, na.rm = T), by = 0.00025)) + 
+  theme_bw()  
+
+#Explore values greater/less than 3SD in MR1
+data3 %>% filter(co2_samp_1 > 0.00210 | co2_samp_1 < 0.00025)
+
+#MR2
+ggplot(data3, aes(co2_samp_2, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_2, na.rm = T)), colour = "red",size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_2, na.rm = T)+ 3*(0.000363), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_2, na.rm = T)- 3*(0.000363), colour = "red")) +
+  scale_x_continuous(breaks = seq(0, max(data3$co2_samp_2, na.rm = T), by = 0.00025)) + 
+  theme_bw()  
+
+#Explore values greater/less than 3SD in MR2
+data3 %>% filter(co2_samp_2 > 0.00210 | co2_samp_2 < 0.00025)
+```
+
+## Correct for control sample from both MR1 and MR2
+
+```{r}
+#Identify control samples that are larger than actual air samples, these are likely to be errors
+data3 %>% filter(co2_samp_1 < co2_samp_control | co2_samp_2 < co2_samp_control)
+
+#Overwrite control sample with NA (n = 4)
+data4 <- data3 %>% mutate(co2_samp_control = ifelse(co2_samp_1 < co2_samp_control | co2_samp_2 < co2_samp_control, NA, data3$co2_samp_control)) 
+
+#Overwrite TINY control samples
+data4 %>% filter(obs %in% badcontrol_obs)
+data4 %<>% mutate(co2_samp_control = ifelse(obs %in% badcontrol_obs, NA, data4$co2_samp_control)) 
+
+#Correct air samples by substracting control from MR1 and MR2
+data4 %<>% mutate(co2_samp_1_c = ifelse(is.na(co2_samp_control), co2_samp_1, co2_samp_1 - co2_samp_control),
+                 co2_samp_2_c =  ifelse(is.na(co2_samp_control), co2_samp_2, co2_samp_2 - co2_samp_control))
+```
+
+## Check for outliers in corrected data for MR1_c and MR2_c
+```{r}
+#Descriptive statistics mean and SD
+data4 %>% summarise(mean_mass = mean(lizmass, na.rm = T),
+                    sd_mass = sd(lizmass, na.rm = T),
+                    mean_mr1_c= mean(co2_samp_1_c, na.rm = T),
+                    sd_mr1_c = sd(co2_samp_1_c, na.rm = T),
+                    mean_mr2_c = mean(co2_samp_2_c, na.rm = T),
+                    sd_mr2_c = sd(co2_samp_2_c, na.rm = T)) %>% signif(3)
+
+#Hist/Density plots
+#Mass
+#Values < 0.1 worth investigating
+ggplot(data4, aes(x = lizmass, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) 
+  
+#MR1
+ggplot(data4, aes(x = co2_samp_1_c, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) +
+  scale_x_continuous(breaks = seq(0, max(data4$co2_samp_1_c, na.rm = T), by = 0.0001))
+
+#MR2
+ggplot(data4, aes(x = co2_samp_2_c, fill = as.factor(treatment))) + 
+  geom_density(alpha = 0.5) + 
+  scale_x_continuous(breaks = seq(0, max(data4$co2_samp_2_c, na.rm = T), by = 0.0001))
+
+#MR Values > 0.0025 worth investigating
+data4 %>% filter(co2_samp_1_c > 0.002 | co2_samp_2_c > 0.002)
+
+#Boxplots 
+#Mass
+ggplot(data4, aes(x = as.factor(treatment), y = lizmass)) + 
+  geom_boxplot()
+
+#MR1
+ggplot(data4, aes(x = as.factor(treatment), y = co2_samp_1_c)) + 
+  geom_boxplot()
+
+#MR2
+ggplot(data4, aes(x = as.factor(treatment), y = co2_samp_2_c)) +
+  geom_boxplot()
+
+#Masses less than 0.1 is concerning and I need to follow these up
+#Check if they are the same individuals and consistent over time
+data4 %>% filter(lizmass < 0.1) %>% select(id, treatment, samp_session) %>% distinct()
+
+#Clevland plots
+#Mass
+ggplot(data4, aes(lizmass, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)+ 3*(0.0503), colour = "red")) +
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)- 3*(0.0503), colour = "red")) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(0, max(data4$lizmass, na.rm = T), by = 0.05))
+
+#Explore values greater/less than 3SD in Mass
+data4 %>% filter(lizmass > 0.40 | lizmass < 0.10)
+
+#MR1
+ggplot(data4, aes(co2_samp_1_c, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)+ 3*(0.000377), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)- 3*(0.000377), colour = "red")) +
+  scale_x_continuous(breaks = seq(0, max(data4$co2_samp_1_c, na.rm = T), by = 0.00025)) + 
+  theme_bw()  
+
+#Explore values greater/less than 3SD in MR1
+data4 %>% filter(co2_samp_1_c > 0.002120882)
+
+#MR2
+ggplot(data4, aes(co2_samp_2_c, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)), colour = "red",size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)+ 3*(0.00037), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)- 3*(0.00037), colour = "red")) +
+  scale_x_continuous(breaks = seq(0, max(data4$co2_samp_1, na.rm = T), by = 0.00025)) + 
+  theme_bw()  
+
+#Explore values greater/less than 3SD in MR2
+data4 %>% filter(co2_samp_2_c > 0.002101294)
+```
+
+#Checking mass data
+Check each individual's mass over time and see if it is similar, if not set as NA
+```{r}
+#Explore values greater/less than 3SD in Mass
+data4 %>% filter(lizmass > 0.40 | lizmass < 0.10) %>% nrow() #20 observations
+data4 %>% filter(lizmass > 0.40 | lizmass < 0.10) %>% pull(id) %>% unique() %>% length() #8 lizards
+
+#Which lizards?
+mass_check_id <- data4 %>% filter(lizmass > 0.40 | lizmass < 0.10) %>% pull(id) %>% unique()
+
+#Filter data
+mass_check_data <- data4 %>% filter(id %in% mass_check_id) %>% select(date:treatment, ch_mass:lizmass_remeasure, obs)
+
+#Set the date as a date
+mass_check_data %<>% mutate(date = dmy(date))
+
+#Make a list
+mass_check_ls <- split(mass_check_data, f = mass_check_data$id)
+
+#Plot each lizard's mass over time
+#ld0469 - #This looks like an error for sure
+ggplot(mass_check_ls[[1]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[1]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0490 - #This looks like an error for sure
+ggplot(mass_check_ls[[2]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[2]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0504 - #This looks like an error for sure
+ggplot(mass_check_ls[[3]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[3]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0510 - #This looks like an error for sure
+ggplot(mass_check_ls[[4]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[4]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0511- #This looks like an error for sure
+ggplot(mass_check_ls[[5]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[5]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0521 - #This looks like an error for sure
+ggplot(mass_check_ls[[6]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[6]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0540 - #2/3 look like errors for sure
+#Mass < 0.70 appear to be errors
+ggplot(mass_check_ls[[7]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[7]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#ld0544 - #This looks like an error for sure
+ggplot(mass_check_ls[[8]], aes(x = date, y = lizmass)) + 
+  geom_point() + 
+  geom_point(data = filter(mass_check_ls[[8]], lizmass > 0.40 | lizmass < 0.10), colour = "red", size = 2) + 
+  stat_smooth(method = "lm")
+
+#Overwriting data4 but setting incorrect masses as NA 
+#18 observations changed over 20 lizards because 0.099 was okay
+data5 <- data4 %>% mutate(lizmass = ifelse(lizmass > 0.40 | lizmass < 0.099, NA, data4$lizmass))
+
+#Double checking with Clevland plot again
+ggplot(data5, aes(lizmass, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)+ 3*(0.0478), colour = "red")) +
+  geom_vline(aes(xintercept = mean(lizmass, na.rm = T)- 3*(0.0478), colour = "red")) +
+  theme_bw() +
+  scale_x_continuous(breaks = seq(0, max(data5$lizmass, na.rm = T), by = 0.05))
+
+#A few obs outside of 3SD but they are fine
+data5 %>% filter(obs %in% c(1997, 1972, 1936, 1911))
+data5 %>% filter(id == "ld0502") %>% pull(lizmass) 
+data5 %>% filter(id == "ld0511")  %>% pull(lizmass) 
+```
+
+#Checking MR1_c data
+```{r}
+#Explore values greater/less than 3SD in MR1
+data4 %>% filter(co2_samp_1_c > 0.002120882) %>% nrow() #27 observations
+data4 %>% filter(co2_samp_1_c > 0.002120882) %>% pull(id) %>% unique() %>% length() #18 lizards
+
+#Which lizards?
+mr1c_check_id <- data4 %>% filter(co2_samp_1_c > 0.002120882) %>% pull(id) %>% unique()
+
+#Filter data
+mr1c_check_data <- data4 %>% filter(id %in% mr1c_check_id) %>% select(date:treatment, ch_mass:lizmass, incb_temp, starts_with("co2"), obs, ends_with("notes"))
+
+#Set the date as a date
+mr1c_check_data %<>% mutate(date = dmy(date))
+
+#Make a list
+mr1c_check_ls <- split(mr1c_check_data, f = mr1c_check_data$id)
+
+#Plot each lizard's mass over time
+ggplot(mr1c_check_data, aes(x = date, y = co2_samp_1_c)) + 
+  geom_point() + 
+  geom_point(data = filter(mr1c_check_data, co2_samp_1_c > 0.002), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%Y %b %d") + 
+  facet_wrap(~id)
+
+#Close look at:
+#ld0545 - Not exactly all hot temperatures, consider them all NA
+ggplot(mr1c_check_ls[['ld0545']], aes(x = date, y = co2_samp_1_c, label = incb_temp)) + 
+  geom_point() + 
+  geom_text() + 
+  geom_point(data = filter(mr1c_check_ls[['ld0545']], co2_samp_1_c > 0.002), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%Y %b %d") + 
+  scale_y_continuous(breaks = seq(0, 0.003, by = 0.00025)) 
+
+#Overwriting data5 but setting incorrect mr1c as NA 
+#Changing 27 observations over 18 lizards
+data5 %>% filter(co2_samp_1_c > 0.002120882)
+data6 <- data5 %>% mutate(co2_samp_1_c = ifelse(co2_samp_1_c > 0.002120882, NA, data5$co2_samp_1_c))
+
+data6 %>% summarise(mean_mass = mean(lizmass, na.rm = T),
+                    sd_mass = sd(lizmass, na.rm = T),
+                    mean_mr1_c= mean(co2_samp_1_c, na.rm = T),
+                    sd_mr1_c = sd(co2_samp_1_c, na.rm = T),
+                    mean_mr2_c = mean(co2_samp_2_c, na.rm = T),
+                    sd_mr2_c = sd(co2_samp_2_c, na.rm = T)) %>% signif(3)
+
+#Double checking with Clevland plot again
+ggplot(data6, aes(co2_samp_1_c, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)+ 3*(0.000341), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)- 3*(0.000341), colour = "red")) +
+  theme_bw() 
+
+#A 9 obs outside of 3SD 
+mr1c_doublecheck_id <- data6 %>% filter(co2_samp_1_c > mean(co2_samp_1_c, na.rm = T)+ 3*(0.000341)) %>% pull(id)
+  
+data6 %>% filter(id %in% mr1c_doublecheck_id) %>%
+  ggplot(aes(x = factor(samp_session), y = co2_samp_1_c, label = incb_temp)) + 
+  geom_point() + 
+  geom_text() + 
+  geom_point(data = data6 %>% filter(co2_samp_1_c > mean(co2_samp_1_c, na.rm = T)+ 3*(0.000341)), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  facet_wrap(~id)
+
+#Interesting that MR increases over time, I feel like these are all errors for sure
+
+#Overwriting data6 but setting incorrect mr1c as NA 
+#Changing 7 observations over 8 lizards
+data6 %>% filter(co2_samp_1_c > mean(co2_samp_1_c, na.rm = T)+ 3*(0.000341))
+data7 <- data6 %>% mutate(co2_samp_1_c = ifelse(co2_samp_1_c > mean(co2_samp_1_c, na.rm = T)+ 3*(0.000341), NA, data6$co2_samp_1_c))
+
+data7 %>% summarise(mean_mass = mean(lizmass, na.rm = T),
+                    sd_mass = sd(lizmass, na.rm = T),
+                    mean_mr1_c= mean(co2_samp_1_c, na.rm = T),
+                    sd_mr1_c = sd(co2_samp_1_c, na.rm = T),
+                    mean_mr2_c = mean(co2_samp_2_c, na.rm = T),
+                    sd_mr2_c = sd(co2_samp_2_c, na.rm = T)) %>% signif(3)
+
+#Double checking with Clevland plot again
+ggplot(data7, aes(co2_samp_1_c, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)+ 3*(0.000333), colour = "red")) +
+  geom_vline(aes(xintercept = mean(co2_samp_1_c, na.rm = T)- 3*(0.000333), colour = "red")) +
+  theme_bw() 
+
+#I'm happy with this now
+```
+
+#Checking MR2_c data
+```{r}
+#Explore values greater/less than 3SD in MR2
+data7 %>% filter(co2_samp_2_c > 0.002101294) %>% nrow() #25 observations
+data7 %>% filter(co2_samp_2_c > 0.002101294) %>% pull(id) %>% unique() %>% length() #18 lizards
+
+#Which lizards?
+mr2c_check_id <- data7 %>% filter(co2_samp_2_c > 0.002101294) %>% pull(id) %>% unique()
+
+#Filter data
+mr2c_check_data <- data7 %>% filter(id %in% mr2c_check_id) %>% select(date:treatment, ch_mass:lizmass, incb_temp, starts_with("co2"), obs, ends_with("notes"))
+
+#Set the date as a date
+mr2c_check_data %<>% mutate(date = dmy(date))
+
+#Make a list
+mr2cs_check_ls <- split(mr2c_check_data, f = mr2c_check_data$id)
+
+#Plot each lizard's mass over time
+ggplot(mr2c_check_data, aes(x = date, y = co2_samp_2_c)) + 
+  geom_point() + 
+  geom_point(data = filter(mr2c_check_data, co2_samp_2_c > 0.002101294), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%Y %b %d") + 
+  facet_wrap(~id)
+
+#Closer look at:
+#ld0515
+ggplot(mr2cs_check_ls[['ld0515']], aes(x = date, y = co2_samp_2_c, label = incb_temp)) + 
+  geom_point() + 
+  geom_text() + 
+  geom_point(data = filter(mr2cs_check_ls[['ld0515']], co2_samp_2_c > 0.002), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%Y %b %d") + 
+  scale_y_continuous(breaks = seq(0, 0.003, by = 0.00025)) 
+
+#ld0521
+ggplot(mr2cs_check_ls[['ld0521']], aes(x = date, y = co2_samp_2_c, label = incb_temp)) + 
+  geom_point() + 
+  geom_text() + 
+  geom_point(data = filter(mr2cs_check_ls[['ld0521']], co2_samp_2_c > 0.002), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%Y %b %d") + 
+  scale_y_continuous(breaks = seq(0, 0.003, by = 0.00025)) 
+
+#ld0545 - Values > 0.00225 are clear errors, the others no
+ggplot(mr2cs_check_ls[['ld0545']], aes(x = date, y = co2_samp_2_c, label = incb_temp)) + 
+  geom_point() + 
+  geom_text() + 
+  geom_point(data = filter(mr2cs_check_ls[['ld0545']], co2_samp_2_c > 0.002), colour = "red", size = 2) + 
+  stat_smooth(method = "lm") + 
+  scale_x_date(date_breaks = "2 weeks", date_labels = "%Y %b %d") + 
+  scale_y_continuous(breaks = seq(0, 0.003, by = 0.00025)) 
+
+#Everyone's red dot are errors, ld0545 2/5 are within normal range
+#Fix everyone else first
+#Which lizards
+mr2c_check_fix_p1 <- mr2c_check_data %>% filter(co2_samp_2_c > 0.002101294 & !id == "ld0545") %>% pull(id) %>% unique() 
+
+#Check its them
+mr2c_check_fix_p1_obs <- data7 %>% filter(co2_samp_2_c > 0.002101294 & id %in% mr2c_check_fix_p1) %>% pull(obs)
+
+#Overwrite with NA
+data8 <- data7 %>% mutate(co2_samp_2_c = ifelse(co2_samp_2_c > 0.002101294 & id %in% mr2c_check_fix_p1, NA, data7$co2_samp_2_c)) 
+
+#Fix ld0545 specifically 
+data9 <- data8 %>% mutate(co2_samp_2_c = ifelse(co2_samp_2_c > 0.00225  & id == "ld0545", NA, data8$co2_samp_2_c)) 
+
+data9 %>% summarise(mean_mass = mean(lizmass, na.rm = T),
+                    sd_mass = sd(lizmass, na.rm = T),
+                    mean_mr1_c= mean(co2_samp_1_c, na.rm = T),
+                    sd_mr1_c = sd(co2_samp_1_c, na.rm = T),
+                    mean_mr2_c = mean(co2_samp_2_c, na.rm = T),
+                    sd_mr2_c = sd(co2_samp_2_c, na.rm = T)) %>% signif(3)
+
+#Double checking with Clevland plot again
+ggplot(data9, aes(log(co2_samp_2_c), obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  # geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)), colour = "red", size = 2) +
+  # geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)+ 3*(0.00034), colour = "red")) +
+  # geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)- 3*(0.00034), colour = "red")) +
+  theme_bw() 
+
+#I think we are okay as we will be logging the values and we can check again later
+data9 %>% filter(obs %in% c(1013, 324, 255))
+```
+
+#Check out values that have notes
+Key to my shorthand:
+FS = Finger slipped
+D = Dropped syringe
+Ch = Chased in enclosure
+Cr = Cricket in enclosure
+WB = Found in water bowl
+LS/L = Lost sample i.e. plug leaked
+T1 = Temp1
+T2 = Temp2
+S1 = Sample 1
+S2 = Sample 2
+C = Control
+BL = Baseline
+P = Peak
+
+```{r}
+#Non empty rows in air collect notes
+data9 %>% filter(! notes %in% "")
+
+#FMS Notes containing bad 
+grep("bad", data9$fms_notes)
+data9 %>% filter(obs == 224) #All good
+
+#Going through each category of notes
+data9 %>% filter(! fms_notes %in% "")
+
+#Highlight the points that have 'notes' associated with measurement
+#Generally all early on observations
+ggplot(data9, aes(log(co2_samp_2_c), obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  #geom_point(data = data9 %>% filter(! fms_notes %in% ""), colour = "red") + 
+  # geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)), colour = "red", size = 2) +
+  # geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)+ 3*(0.00034), colour = "red")) +
+  # geom_vline(aes(xintercept = mean(co2_samp_2_c, na.rm = T)- 3*(0.00034), colour = "red")) +
+  theme_bw() 
+
+#After logging values that stand out are 255 and 262 but these are also tiny values that we will have to deal with later. We are okay moving on
+```
+## Convert WH values to metabR values
+```{r}
+## Read in verifying data
+verify_data <- read.csv("data/curve_data/verify_wh_metabR/wh_metabR_compare.csv", stringsAsFactors = F)
+str(verify_data)
+
+verify_data %>% group_by(factor(incb_temp)) %>% summarise(nrow = length(id))
+
+#Sample 1
+ggpairs(verify_data %>% select(ends_with("samp_1")))
+psych::corr.test(verify_data %>% select(ends_with("samp_1")))  %>% print(short = F)
+
+#Sample 2
+ggpairs(verify_data %>% select(ends_with("samp_2")))
+psych::corr.test(verify_data %>% select(ends_with("samp_2")))  %>% print(short = F)
+
+
+#Plot line of best fit
+ggplot(verify_data, aes(x = WH_co2_samp_1, y = mtbR_co2_samp_1)) + 
+  geom_point() + 
+  stat_smooth(method = "lm") + 
+  theme_bw()
+
+#Fit a model
+mod.1 <- lm(mtbR_co2_samp_1 ~ WH_co2_samp_1, data = verify_data)
+summary(mod.1)
+coef(mod.1)[2]
+
+#Cross check if conversion works 
+verify_data %<>% mutate(convertd_co2_samp1 = WH_co2_samp_1*coef(mod.1)[2],
+                       convertd_co2_samp2 = WH_co2_samp_2*coef(mod.1)[2])
+
+#Calculate diff with metabR and converted data
+verify_data$mtbR_co2_samp_1 - verify_data$convertd_co2_samp1 %>% hist(breaks = 50)
+verify_data$mtbR_co2_samp_2 - verify_data$convertd_co2_samp2 %>% hist(breaks = 50)
+
+#Means and SD of diff
+(verify_data$mtbR_co2_samp_1 - verify_data$convertd_co2_samp1) %>% mean(na.rm = T) %>% signif(2)
+(verify_data$mtbR_co2_samp_1 - verify_data$convertd_co2_samp1) %>% sd(na.rm = T) %>% signif(2)
+
+(verify_data$mtbR_co2_samp_2 - verify_data$convertd_co2_samp2) %>% mean(na.rm = T) %>% signif(2)
+(verify_data$mtbR_co2_samp_2 - verify_data$convertd_co2_samp2) %>% sd(na.rm = T) %>% signif(2)
+
+#Correct WH values
+data10 <- data9 %>% mutate(metabR_co2_samp1 = co2_samp_1_c*coef(mod.1)[2],
+                           metabR_co2_samp2 = co2_samp_2_c*coef(mod.1)[2])
+
+#Tiny differences, we are okay!
+```
+
+## Merge in pressure data
+
+```{r}
+pressure_data <- read.csv("data/pressure_data_2018.csv", stringsAsFactors = F)
+
+#Set datein both datasets
+pressure_data %<>% mutate(date = dmy(date))
+data10 %<>% mutate(date = dmy(date))
+
+#Join in pressure data
+data11 <- left_join(data10, pressure_data) 
+```
+
+## Calculate metabolic rate accounting for pressure, temperature and mass and time
+```{r}
+names(data11)
+
+#Calculate actual chamber volume 
+data11 %<>% mutate(ch_vol_actual = ch_vol - lizmass)
+
+data12 <- data11 %>% mutate(MR_samp_1 = my_MRCO2(v= data11$ch_vol_actual,
+                                                 time = data11$t_diff,
+                                                 bp = data11$mean_kPa,
+                                                 t = data11$incb_temp,
+                                                 CO2_dataChange = data11$metabR_co2_samp1),
+                            MR_samp_2 = my_MRCO2(v= data11$ch_vol_actual,
+                                                 time = data11$t_diff,
+                                                 bp = data11$mean_kPa,
+                                                 t = data11$incb_temp,
+                                                 CO2_dataChange = data11$metabR_co2_samp2))
+
+#Sanity checks
+#Descriptive statistics mean and SD
+data12 %>% summarise(mean_mass = mean(lizmass, na.rm = T),
+                    sd_mass = sd(lizmass, na.rm = T),
+                    mean_mr1 = mean(MR_samp_1, na.rm = T),
+                    sd_mr1 = sd(MR_samp_1, na.rm = T),
+                    mean_lnmr1 = mean(log(MR_samp_1), na.rm = T),
+                    sd_lnmr1 = sd(log(MR_samp_1), na.rm = T),
+                    mean_mr2 = mean(MR_samp_2, na.rm = T),
+                    sd_mr2 = sd(MR_samp_2, na.rm = T),
+                    mean_lnmr2 = mean(log(MR_samp_2), na.rm = T),
+                    sd_lnmr2 = sd(log(MR_samp_2), na.rm = T)) %>% signif(3)
+
+#MR1
+ggplot(data12, aes(MR_samp_1, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(MR_samp_1, na.rm = T)), colour = "red",size = 2) +
+  geom_vline(aes(xintercept = mean(MR_samp_1, na.rm = T)+ 3*( 0.000821), colour = "red")) +
+  geom_vline(aes(xintercept = mean(MR_samp_1, na.rm = T)- 3*( 0.000821), colour = "red")) +
+  scale_x_continuous(breaks = seq(0, max(data12$MR_samp_1, na.rm = T), by = 0.00025)) + 
+  theme_bw() 
+
+#log scale
+ggplot(data12, aes(log(MR_samp_1), obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(log(MR_samp_1), na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_1), na.rm = T)+ 3*(0.448), colour = "red")) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_1), na.rm = T)- 3*(0.448), colour = "red")) +
+  theme_bw()  
+
+#Explore values less than 3SD in MR1
+data12 %>% filter(log(MR_samp_1) < -7.655202)
+
+#MR2
+ggplot(data12, aes(MR_samp_2, obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(MR_samp_2, na.rm = T)), colour = "red",size = 2) +
+  geom_vline(aes(xintercept = mean(MR_samp_2, na.rm = T)+ 3*(0.000837), colour = "red")) +
+  geom_vline(aes(xintercept = mean(MR_samp_2, na.rm = T)- 3*( 0.000837), colour = "red")) +
+  scale_x_continuous(breaks = seq(0, max(data12$MR_samp_2, na.rm = T), by = 0.00025)) + 
+  theme_bw()  
+
+#log scale
+ggplot(data12, aes(log(MR_samp_2), obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(log(MR_samp_2), na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_2), na.rm = T)+ 3*(0.437), colour = "red")) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_2), na.rm = T)- 3*(0.437), colour = "red")) +
+  theme_bw()  
+
+#Explore values less than 3SD in MR1
+data12 %>% filter(log(MR_samp_2) < -7.612835)
+
+#Samp 10 errors
+weird_ids <- data %>% filter(samp_session == 10 & batch == 2) %>% pull(id) %>% unique()
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 26) %>% pull(MR_samp_1) <
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 30) %>% pull(MR_samp_1)
+
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 26) %>% pull(MR_samp_2) <
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 30) %>% pull(MR_samp_2)
+
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 24) %>% pull(MR_samp_1) <
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 34) %>% pull(MR_samp_1)
+
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 24) %>% pull(MR_samp_2) <
+data12 %>% filter(date == "2018-07-10" & id %in% weird_ids & incb_temp == 34) %>% pull(MR_samp_2)
+
+```
+
+## Explore tiny MR values
+```{r}
+# Control and S1 and S2 values are very similar. These are likely bad control samples. Should set to NA and not substract them from samples go back to data3 and redo this. These were undetected because control samples are still less than actual air samples
+# data12 %>% filter(log(MR_samp_1) < -7.655202) %>% summarise(diff_1 = co2_samp_1 - co2_samp_control,
+#                                                             smaller_1 = co2_samp_1 > co2_samp_control,
+#                                                             diff_2 = co2_samp_2 - co2_samp_control,
+#                                                             smaller_2 = co2_samp_2 > co2_samp_control)
+# #The NAs because no control samples and I suspect the samples are just errors
+# 
+# data12 %>% filter(log(MR_samp_2) < -7.612835) %>% summarise(diff_1 = co2_samp_1 - co2_samp_control,
+#                                                              smaller_1 = co2_samp_1 > co2_samp_control,
+#                                                             diff_2 = co2_samp_2 - co2_samp_control,
+#                                                             maller_2 = co2_samp_2 > co2_samp_control)
+# 
+# #18 control samples are considered bad and will be set to NA, across 16 lizards
+# data12 %>% filter(log(MR_samp_1) < -7.655202 | log(MR_samp_2) < -7.612835) %>% select(obs) %>% unique()
+# data12 %>% filter(log(MR_samp_1) < -7.655202 | log(MR_samp_2) < -7.612835) %>% select(id) %>% unique()
+# 
+# badcontrol_obs <- data12 %>% filter(log(MR_samp_1) < -7.655202 | log(MR_samp_2) < -7.612835) %>% pull(obs) %>% unique()
+
+#Final corrections
+data12 %>% filter(log(MR_samp_1) < -7.655202 | log(MR_samp_2) < -7.612835) 
+data13 <- data12 %>% mutate(MR_samp_1 = ifelse(log(MR_samp_1) < -7.655202, NA, data12$MR_samp_1),
+                            MR_samp_2 = ifelse(log(MR_samp_2) < -7.612835, NA, data12$MR_samp_2)) 
+
+#Final Peak
+ggplot(data13, aes(log(MR_samp_1), obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(log(MR_samp_1), na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_1), na.rm = T)+ 3*(0.437), colour = "red")) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_1), na.rm = T)- 3*(0.437), colour = "red")) +
+  theme_bw()  
+
+ggplot(data13, aes(log(MR_samp_2), obs, label = obs)) +
+  geom_point(colour = "white") +
+  geom_text() + 
+  geom_vline(aes(xintercept = mean(log(MR_samp_2), na.rm = T)), colour = "red", size = 2) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_2), na.rm = T)+ 3*(0.437), colour = "red")) +
+  geom_vline(aes(xintercept = mean(log(MR_samp_2), na.rm = T)- 3*(0.437), colour = "red")) +
+  theme_bw()  
+
+#Happy days
+```
+
+## Code prior temp
+```{r}
+data14 <- data13 %>% group_by(id, date, incb_num) %>% mutate(prior_temp = ifelse(incb_temp_id == 1, body_temp, incb_temp[incb_temp_id == 1])) %>% as.data.frame() #This works beautifully
+```
+
+## z-Log transformations
+```{r}
+data15 <- data14 %>% mutate(temp = incb_temp,
+                            lnmass = log(lizmass),
+                            lnmr_samp_1 = log(MR_samp_1),
+                            lnmr_samp_2 = log(MR_samp_2),
+                            z_lnmass = c(scale(lnmass)),
+                            z_lnmr_samp_1 = c(scale(lnmr_samp_1)),
+                            z_lnmr_samp_2 = c(scale(lnmr_samp_2)))
+```
+
+## Scatterplots to explore relationship
+```{r}
+ggplot(data15, aes(x = lizmass, y = MR_samp_1)) + 
+  geom_point() + 
+  stat_smooth(method = "auto")
+
+ggplot(data15, aes(x = lizmass, y = MR_samp_2)) + 
+  geom_point() + 
+  stat_smooth(method = "auto")
+
+ggplot(data15, aes(x = lnmass, y = lnmr_samp_1)) + 
+  geom_point() + 
+  stat_smooth(method = "lm")
+
+ggplot(data15, aes(x = lnmass, y = lnmr_samp_2)) + 
+  geom_point() + 
+  stat_smooth(method = "lm")
+
+ggplot(data15, aes(x = temp, y = MR_samp_1)) + 
+  geom_point() + 
+  stat_smooth(method = "lm")
+
+ggplot(data15, aes(x = temp, y = MR_samp_2)) + 
+  geom_point() + 
+  stat_smooth(method = "lm")
+```
+
+## Wide to long to code series to group replicates
+```{r}
+data15_mini <- data15 %>% select(date:id, treatment, temp, prior_temp, lnmass, z_lnmass, MR_samp_1, lnmr_samp_1, MR_samp_2, lnmr_samp_2)
+
+data15_mini_long <- data15_mini %>% pivot_longer(cols = starts_with("lnmr"), names_to = "replicate", values_to = "lnmr") %>% as.data.frame() %>% arrange(date, id)
+
+#Create series that groups replicates together and uniquely identifies each sample
+data15_mini_long %<>% mutate(replicate = ifelse(replicate == "lnmr_samp_1", "samp_1", "samp_2"),
+                             series_rep = paste0(id, "_", samp_session, "_", replicate))
+                             #series_temp = paste0(id, "_", samp_session, "_", temp))
+
+#Rearrange
+data15_mini_long %<>% select(date, samp_session, id, series_rep, treatment, temp,  prior_temp, lnmass, z_lnmass, lnmr)
+
+data15_mini_long %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 26) %>% pull(lnmr) <
+data15_mini_long %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 30) %>% pull(lnmr)
+
+data15_mini_long %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 24) %>% pull(lnmr) <
+data15_mini_long %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 34) %>% pull(lnmr)
+```
+
+## Long to Wide by Temp
+```{r}
+#Pivtor wide by temperature
+data15_wide <- data15_mini_long %>% pivot_wider(id_cols = c(samp_session:z_lnmass) , names_from = temp, values_from = c(lnmr, lnmass,z_lnmass, prior_temp)) %>% as.data.frame()  %>% arrange(id, samp_session)
+
+data15_wide$series_rep <- NULL
+
+#That worked
+```
+
+## Add in empty rows of temperature data for data imputation
+```{r}
+#Create series temp
+data15_mini_long %<>% mutate(series_temp = paste0(id, "_", samp_session, "_", temp))
+
+#Split  by ID
+data15_long_ls <- split(data15_mini_long, f = data15_mini_long$id)
+
+#Split by Session
+data16_long_ls_ss <- lapply(data15_long_ls, function(x) split(x, f = x$samp_session))
+
+#What temp is missing in each session? 
+#Full set of temperatures
+all_T <- c(seq(24, 34, by = 2))
+
+#Temperatures that lizard was measure at in this session?
+data15_long_ls_ss[[1]][[1]]$temp %>% unique() 
+
+#Which temperatures are missing in this session?
+missing_T <- all_T[! all_T %in% c(data15_long_ls_ss[[1]][[1]]$temp %>% unique())]
+
+#Create 2 x rows for each temperature in this session
+new_data <- data15_long_ls_ss[[1]][[1]][1:4,]
+
+#Recreate series for new missing temperatures
+new_data %>%  mutate(prior_temp = NA,
+                     z_lnmass = NA,
+                     lnmr = NA,
+                     temp = rep(missing_T, each = 2), 
+                     series_temp =  paste0(id, "_", samp_session, "_", temp))
+
+#Bind back to original dataframe
+data15_long_ls_ss[[1]][[1]] <- bind_rows(data15_long_ls_ss[[1]][[1]],
+                                         new_data)
+
+#List attributes
+data15_mini_long %>% group_by(id) %>% summarise(n = length(lnmr)) %>% as.data.frame()
+
+#Write a function to automate this
+#create_missing_temp <- function(data){
+all_T <- c(seq(24, 34, by = 2))
+
+create_missing_temp <- function(data){
+  
+  #Temperatures that lizard was measure at in this session?
+  measured_T <- data$temp %>% unique() 
+  
+  #Which temperatures are missing in this session?
+  missing_T <- all_T[! all_T %in% measured_T]
+  
+  #Create 2 x rows for each temperature in this session using own lizard data
+  new_data <- data[1:4,]
+  
+  #Set missing variables as NA 
+  #Replace the temp is the ones are missing
+  #Recreate series for new missing temperatures
+  new_data %<>%  mutate(prior_temp = NA,
+                       z_lnmass = NA,
+                       lnmr = NA,
+                       temp = rep(missing_T, each = 2), 
+                       series_temp =  paste0(id, "_", samp_session, "_", temp))
+  
+  #Bind back to data
+  data <- bind_rows(data,
+                    new_data)
+  
+  return(data)
+}
+
+#Single loop works great
+for(i in 1:length(data15_long_ls_ss[[1]])){
+    all_T <- c(seq(24, 34, by = 2))
+    
+    measured_T <- data15_long_ls_ss[[1]][[i]]$temp %>% unique() 
+    
+    #Which temperatures are missing in this session?
+    missing_T <- all_T[! all_T %in% measured_T]
+    
+    #Create 2 x rows for each temperature in this session using own lizard data
+    new_data <- data15_long_ls_ss[[1]][[i]][1:4,]
+    
+    #Set missing variables as NA 
+    #Replace the temp is the ones are missing
+    #Recreate series for new missing temperatures
+    new_data %<>%  mutate(prior_temp = NA,
+                          lnmass = NA,
+                          z_lnmass = NA,
+                          lnmr = NA,
+                          temp = rep(missing_T, each = 2), 
+                          series_temp =  paste0(id, "_", samp_session, "_", temp))
+    
+    #Bind back to data
+    data15_long_ls_ss[[1]][[i]] <- bind_rows(data15_long_ls_ss[[1]][[i]],
+                                             new_data)
+}
+
+#Nested list
+for(i in seq_along(data16_long_ls_ss)){
+  for(j in seq_along(data16_long_ls_ss[[i]])){
+    all_T <- c(seq(24, 34, by = 2))
+    
+    measured_T <- data16_long_ls_ss[[i]][[j]]$temp %>% unique() 
+    
+    #Which temperatures are missing in this session?
+    missing_T <- all_T[! all_T %in% measured_T]
+    
+    #Create 2 x rows for each temperature in this session using own lizard data
+    new_data <- data16_long_ls_ss[[i]][[j]][1:4,]
+                          
+    #Set missing variables as NA 
+    #Replace the temp is the ones are missing
+    #Recreate series for new missing temperatures
+    new_data %<>%  mutate(prior_temp = NA,
+                          lnmass = NA,
+                          z_lnmass = NA,
+                          lnmr = NA,
+                          temp = rep(missing_T, each = 2), 
+                          series_temp =  paste0(id, "_", samp_session, "_", temp))
+    
+    #Bind back to data
+    data16_long_ls_ss[[i]][[j]] <- bind_rows(data16_long_ls_ss[[i]][[j]],
+                                             new_data)
+  }
+}
+
+#Unlist
+do.call(rbind, unlist(data16_long_ls_ss, recursive = F)) %>% str()
+data16 <- do.call(rbind, unlist(data16_long_ls_ss, recursive = F))
+rownames(data16) <- 1:nrow(data16)
+
+data16 %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 26) %>% pull(lnmr) <
+data16 %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 30) %>% pull(lnmr)
+
+data16 %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 24) %>% pull(lnmr) <
+data16 %>% filter(date == "2018-07-10" & id %in% weird_ids & temp == 34) %>% pull(lnmr)
+```
+
+#Merge in age data
+```{r}
+lizard_data <- read.csv("data/lizard/season2_hatchlings.csv", stringsAsFactors =  F)
+str(lizard_data)
+
+#Set date as date
+lizard_data %<>% mutate(liz_hatch_date = dmy(liz_hatch_date))
+
+#Check overlap
+unique(data16$id) %in% unique(lizard_data$id) 
+setdiff(unique(data16$id), unique(lizard_data$id)) #great
+
+#Merge in lizard hatch date
+data15_mini_long <- left_join(data15_mini_long, select(lizard_data, id, liz_hatch_date))
+data17 <- left_join(data16, select(lizard_data, id, liz_hatch_date))
+
+#Compute age
+data15_mini_long %<>% mutate(age = as.numeric(date - liz_hatch_date),
+                              z_age = c(scale(age)))
+
+data15_mini_long %<>% mutate(z_age = c(scale(age)))
+data17 %<>% mutate(age = as.numeric(date - liz_hatch_date),
+                   z_age = c(scale(age)))
+
+data15_mini_long %>% filter(date == "2018-07-10" & temp == 26) %>% pull(lnmr) <
+data15_mini_long %>% filter(date == "2018-07-10"  & temp == 30) %>% pull(lnmr)
+
+data15_mini_long %>% filter(date == "2018-07-10" & temp == 24) %>% pull(lnmr) <
+data15_mini_long %>% filter(date == "2018-07-10"  & temp == 34) %>% pull(lnmr)
+
+
+
+data17 %>% filter(date == "2018-07-10" & temp == 26) %>% pull(lnmr) <
+data17 %>% filter(date == "2018-07-10"  & temp == 30) %>% pull(lnmr)
+
+data17 %>% filter(date == "2018-07-10" & temp == 24) %>% pull(lnmr) <
+data17 %>% filter(date == "2018-07-10"  & temp == 34) %>% pull(lnmr)
+
+```
+
+## Rearrange the variables 
+
+```{r}
+#Rearrange vars
+data15_wide %<>% select(samp_session,id, treatment, 
+                  prior_temp_24, prior_temp_26, prior_temp_28, prior_temp_30, prior_temp_32, prior_temp_34,
+                  lnmass_24, lnmass_26,lnmass_28, lnmass_30, lnmass_32, lnmass_34,
+                  z_lnmass_24, z_lnmass_26, z_lnmass_28, z_lnmass_30, z_lnmass_32, z_lnmass_34,
+                  lnmr_24, lnmr_26, lnmr_28, lnmr_30, lnmr_32, lnmr_34
+                  ) 
+
+
+data17 %<>% select(date:treatment, -series_rep, series_temp, age, z_age, temp:lnmr)
+
+data15_mini_long %<>% select(date:treatment, series_temp, age, z_age, temp:lnmr)
+
+#With missing data rows
+write.csv(data17, row.names = F, "data/processed/Long_Tinc_MR_MI.csv")
+write.csv(data15_wide, row.names = F, "data/processed/Wide_Tinc_MR.csv")
+
+#Regular data no missing data added
+write.csv(data15_mini_long, row.names = F, "data/processed/Long_Tinc_MR.csv")
+
+#Complete cases
+data15_mini_long_cc <- data15_mini_long[complete.cases(data15_mini_long$lnmr),] 
+write.csv(data15_mini_long_cc, row.names = F, "data/processed/CC_Long_Tinc_MR.csv")
+```
+
+## Overlap with G matrix
+```{r}
+G_VCV <- read.csv("~/Dropbox/1 - PhD/4 - ldeli_growthrate/output/G/Ga_SNPready.csv", row.names = 1) %>% as.matrix()
+
+#Check overlap
+unique(data17$id) %in% row.names(G_VCV)
+setdiff(unique(data17$id),row.names(G_VCV)) #4 we don't have genotype data missing
+
+#Can we assign these based on same enclosure and by logic clutch and mother?
+lizard_data %>% filter(id %in% setdiff(unique(data17$id),row.names(G_VCV))) 
+
+#Filter by their egg clutch/tub
+lizard_data %>% filter(egg_clutch_id %in% c("c0083", "c0090", "c0091", "c0078")) #great there are dups
+
+#Check if siblings are in G matrix
+surrogate_id <- lizard_data %>% filter(egg_clutch_id %in% c("c0083", "c0090", "c0091", "c0078") & ! id %in% setdiff(unique(data17$id),row.names(G_VCV))) %>% pull(id) #exclude original missing ones
+
+#Check overlap
+surrogate_id %in% row.names(G_VCV) #YAS all matched
+setdiff(surrogate_id,row.names(G_VCV)) #great
+
+#Are surrogates in my metabolism data?
+unique(data17$id) %in% surrogate_id
+intersect(unique(data17$id), surrogate_id) #Need to also exclude these
+surrogate_id_2 <- surrogate_id[! surrogate_id %in% intersect(unique(data17$id), surrogate_id)]
+
+#Check overlap again with not matched ones 
+surrogate_id_2 %in% row.names(G_VCV) #YAS all matched
+setdiff(surrogate_id_2,row.names(G_VCV)) #great
+
+unique(data17$id) %in% surrogate_id_2 #These are our final surrogates 
+
+lizard_data %>% filter(id %in% setdiff(unique(data17$id),row.names(G_VCV))) 
+
+lizard_data %>% filter(id %in% surrogate_id_2) #2 c0078, no alternatives for c0083
+#Flipping a coin to select with c0078 lizard to replace
+set.seed(7)
+sample(c(1,2), 1, replace = F) #ld0454 it is! 
+
+lizard_data %>% filter(egg_clutch_id == "c0083") #May need to exclude that hot lizard
+
+surrogate_id_final <- surrogate_id_2[! surrogate_id_2 %in% "ld0450"]
+
+#Replace surrogates with dataset id
+#Just to be SUPER clear
+# METAB      G surrogate
+# ld0472     ld0499
+# ld0473     ld0496
+# ld0479     ld0454
+
+G_VCV_surrogate <- G_VCV
+which(rownames(G_VCV_surrogate) %in% surrogate_id_final)
+
+rownames(G_VCV_surrogate)[which(rownames(G_VCV_surrogate) %in% surrogate_id_final)] <- c("ld0473", "ld0479", "ld0472")
+
+colnames(G_VCV_surrogate)[which(colnames(G_VCV_surrogate) %in% surrogate_id_final)] <- c("ld0473", "ld0479", "ld0472")
+
+#Check overlap
+rownames(G_VCV_surrogate)[which(rownames(G_VCV) %in% surrogate_id_final)]
+colnames(G_VCV_surrogate)[which(colnames(G_VCV) %in% surrogate_id_final)]
+
+
+unique(data17$id) %in% rownames(G_VCV_surrogate) 
+setdiff(unique(data17$id),rownames(G_VCV_surrogate)) #This is lizard we will have to drop
+
+write.csv(G_VCV_surrogate, "output/G/G_VCV_surrogate.csv")
+
+```
+
+
+
+
+
+## Data cleaning and processing
+
+We inspected the distribution of our raw data using density plots. We plotted cleveland plots of each variable and scatterplots between body mass with metabolic rate and temperature with metabolic rate to identify potential outliers or input errors. We identified eight observations (<1% of dataset, n = 4 lizards) with negative mass values and were due to mechanical error and were set to NA. 
+
+We found an additional 18 observations (<1% of dataset, n = 20 lizards) where their mass values were greater or less than three standard deviations of all mass data. We investigated whether these observations were in line with each lizard's mass data by plotting mass over time. All 18 observations were drastically different from each lizard's own data, we therefore set all 18 obeservations to NA.
+
+
+We identifed a total of 70 corrected metabolic rate observations (<1% of dataset, n = 25 lizards) were greater or less than three standard deviation of all metabolic rate data. Similar to the mass data, we investigated whether these observations were in line with each lizard's metabolic rate data by plotting metabolic rate over time. All 68/70 observations were drastically different from each lizard's own data, there values were all set to NA.
+
+

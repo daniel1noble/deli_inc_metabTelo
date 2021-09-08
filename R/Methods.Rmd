@@ -1,0 +1,128 @@
+---
+title: "Methods"
+author: "Fonti Kar"
+date: "9/1/2020"
+output:
+  html_document:
+    df_print: paged
+  word_document:
+    reference_docx: Style_guide.docx
+---
+
+```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(eval = FALSE,
+                      echo = FALSE, 
+                      include = FALSE, 
+                      warning = FALSE,
+                      message = FALSE)
+rm(list=ls())
+sessionInfo()
+
+# R version 3.6.1 (2019-07-05)
+# Platform: x86_64-apple-darwin15.6.0 (64-bit)
+# Running under: macOS High Sierra 10.13.6
+
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander)
+```
+
+```{r}
+## Read in data
+data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR.csv", stringsAsFactors = F)
+
+## Create Temperature^2
+data %<>% mutate(temp_I2 = temp^2)
+
+## We don't need prior_temp
+data %<>% select(-prior_temp)
+```
+
+```{r}
+#Treatment summaries
+data %>% select(id, treatment) %>% distinct() %>% tabyl(treatment) #26 cold lizards, 25 hot lizards
+```
+
+```{r}
+#Age summary
+at_start_data <- data %>% filter(samp_session == 1)
+at_start_data %<>% select(id, treatment, age) %>% distinct
+
+summary(at_start_data$age)
+mean(at_start_data$age, na.rm = T)
+sd(at_start_data$age, na.rm = T)
+```
+
+```{r}
+#Batch summary
+raw_data <- read.csv("data/curve_data/ldeli_tinc_integrate.csv", stringsAsFactors = F)
+
+raw_data %>% select(batch, id, treatment) %>% distinct() %>% tabyl(batch)
+```
+
+```{r}
+#Missing data summary
+mi_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
+
+pm_data <- mi_data %>% filter(is.na(lnmr) & is.na(z_lnmass))
+str(pm_data)
+pm_data %<>% distinct()
+
+#Number of missing observations by ID and treatment
+pm_data %>% group_by(id, treatment) %>% summarise(missing_temp_obs = length(temp)) %>% as.data.frame()
+
+#I want to know what temperatures were missing for each ID and treatment
+pmT_data <- pm_data %>% group_by(id, treatment) %>% summarise(missing_obs_T24 = length(temp[temp == 24]),
+                                                  missing_obs_T26 = length(temp[temp == 26]),
+                                                  missing_obs_T28 = length(temp[temp == 28]),
+                                                  missing_obs_T30 = length(temp[temp == 30]),
+                                                  missing_obs_T32 = length(temp[temp == 32]),
+                                                  missing_obs_T34 = length(temp[temp == 34])) %>% as.data.frame()
+
+colMeans(pmT_data[,3:8])
+#What measurements we have
+comp_data <- data %>% filter(! is.na(lnmr) & ! is.na(z_lnmass)) %>% group_by(id, treatment) %>% summarise(obs_T24 = length(temp[temp == 24]),
+                                                  obs_T26 = length(temp[temp == 26]),
+                                                  obs_T28 = length(temp[temp == 28]),
+                                                  obs_T30 = length(temp[temp == 30]),
+                                                  obs_T32 = length(temp[temp == 32]),
+                                                  obs_T34 = length(temp[temp == 34])) %>% as.data.frame()
+
+comp_data$obs_T24 %>% summary()
+comp_data$obs_T26 %>% summary()
+comp_data$obs_T28 %>% summary()
+comp_data$obs_T30 %>% summary()
+comp_data$obs_T32 %>% summary()
+comp_data$obs_T34 %>% summary()
+
+unlist(c(comp_data[,3:8])) %>% mean()
+unlist(c(comp_data[,3:8])) %>% sd()
+unlist(c(comp_data[,3:8])) %>% summary()
+```
+
+$$R_{t} = V_{I} + (t^2.V_{S}) + (2t.Cov_{I,S}) $$
+```{r}
+#Incubation duration differenecs between treatment groups
+
+egg <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/lizard/all_eggs.csv", stringsAsFactors = F)
+
+liz_rep <- data$id %>% unique()
+
+liz_egg_data <- egg %>% filter(liz_id %in% liz_rep)
+names(liz_egg_data)
+
+#Set date
+liz_egg_data %<>% mutate(egg_laid_date = dmy(egg_laid_date),
+                        liz_hatch_date = dmy(liz_hatch_date))
+
+#Calc incub dur
+liz_egg_data %<>% mutate(incub_dur = as.numeric(liz_hatch_date - egg_laid_date))
+
+#Compare between treatments
+liz_egg_data %>% group_by(factor(egg_incub_temp)) %>% 
+  summarise(mean_incb_dur = mean(incub_dur, na.rm = T),
+            sd_incb_dur = sd(incub_dur, na.rm = T), 
+            min = min(incub_dur),
+            max = max(incub_dur))
+
+
+```
+

@@ -7,6 +7,8 @@ output:
     reference_docx: Style_guide.docx
   html_document:
     df_print: paged
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, eval = TRUE, include = FALSE, echo = FALSE}
@@ -22,7 +24,7 @@ sessionInfo()
 # Platform: x86_64-apple-darwin15.6.0 (64-bit)
 # Running under: macOS High Sierra 10.13.6
 
-pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr, bayestestR)
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr, bayestestR, brms)
 
 my_theme <- theme(#legend.position = "none",
   legend.position = "bottom",
@@ -925,3 +927,68 @@ ecto_white %>% filter(Interval..days. > 8.5) %>%
             sd_rpt = sd(Repeatability) %>% round(2), 
             n = length(Repeatability))
 ```
+
+Egg sizes and hatching success
+
+```{r}
+egg_data <- read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/lizard/all_eggs.csv")
+
+#Overview
+names(egg_data)
+str(egg_data)
+
+#Clean
+egg_data %<>% filter(! egg_status == "AVAILABLE" &
+                       ! egg_status == "CULLED" &
+                       ! egg_status == "" &
+                       egg_fertile_status == "fertile")
+
+#Difference in egg sizes between treatments
+egg_mass <- lm(egg_mass_orig ~ factor(egg_incub_temp), data = egg_data)
+summary(egg_mass)
+
+egg_len <- lm(egg_length_orig ~ factor(egg_incub_temp), data = egg_data)
+summary(egg_len)
+
+egg_width <- lm(egg_width_orig ~ factor(egg_incub_temp), data = egg_data)
+summary(egg_width)
+
+#Multivariate response model
+egg_mass_mod <- bf(egg_mass_orig ~ factor(egg_incub_temp))
+egg_len_mod <- bf(egg_length_orig ~ factor(egg_incub_temp))
+egg_wid_mod <- bf(egg_width_orig ~ factor(egg_incub_temp))
+
+#setup
+iter = 5000
+warmup = iter/2
+thin = 5
+
+egg_dim_mvmod <- brm(formula = egg_mass_mod + egg_len_mod + egg_wid_mod,
+                     data = egg_data, family = gaussian(),
+                     cores = 3,
+                     iter = iter,
+                     warmup = warmup,
+                     thin = thin)
+
+saveRDS(egg_dim_mvmod, "~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/egg_dim_mvmod")
+
+#Difference in hatching success
+hatch_data <- egg_data %>% filter(! egg_status == "AVAILABLE" &
+                                    ! egg_status == "CULLED" &
+                                    ! egg_status == "" &
+                                    egg_fertile_status == "fertile") #Cleaning
+#Create new variable
+hatch_data %<>% mutate(hatch_success = ifelse(egg_status == "DEAD", 0, 1))
+
+hatch_suc <- glm(factor(hatch_success) ~ egg_mass_orig + egg_incub_temp, 
+                 data = hatch_data,
+                 family = "binomial")
+
+summary(hatch_suc)
+```
+
+
+```{r}
+
+```
+
