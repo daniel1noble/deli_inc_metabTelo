@@ -1,0 +1,237 @@
+---
+title: "Population and Parental effects"
+author: "Fonti Kar"
+date: "30/09/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE,
+                      echo = FALSE, 
+                      include = FALSE, 
+                      warning = FALSE,
+                      message = FALSE)
+rm(list=ls())
+sessionInfo()
+
+pacman::p_load(dplyr, magrittr, ggplot2, purrr, Rphylopars, phytools, GGally, mice, janitor, patchwork, GGally, psych, brms, mi, pander,latex2exp, stringr, tidybayes, bayestestR)
+```
+
+# Read in data
+
+```{r}
+#Metab data
+CC_data <-read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/CC_Long_Tinc_MR.csv", stringsAsFactors = F)
+
+mi_data <- read.csv("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/Long_Tinc_MR_MI.csv", stringsAsFactors = F)
+
+#Parents
+parentage <- read.csv("~/Dropbox/1 - PhD/4 - ldeli_growthrate/data/SNP/Wide_Parentage_ID_assigned.csv", stringsAsFactors = F)
+
+#Population
+adults_pop <- read.csv("~/Dropbox/1 - PhD/4 - ldeli_growthrate/data/egg_lizard/adult_data.csv", stringsAsFactors = F)
+```
+
+L. 127: Are the three females all coming from the same location? I think this question comes with the (only) real concern I have with this study: could the habitat of origin biased your results via local adaptation of the plastic response? Could this be accounted for in your analyses?
+
+## First we need to assign parents to populations
+
+```{r}
+#Need to merge parents data with population data
+names(parentage)
+names(adults_pop)
+
+#Before we do that we need to change the var names
+adults_pop %<>% rename(f0_id = liz_id,
+                       sex = liz_sex,
+                       population = liz_collect_site)
+
+#Merge population to parentage
+head(parentage)
+parentage %>% arrange(Dam) %>% tibble()
+Mum <- parentage %>% rename(f0_id = Dam)
+Dad <- parentage %>% rename(f0_id = Sire)
+
+#Merging by Dam and Sire seperately
+pop_mum <- left_join(Mum, adults_pop %>% select(f0_id, population), by = "f0_id")
+pop_mum %<>% rename(dam_population = population)
+
+pop_dad <- left_join(Dad, adults_pop %>% select(f0_id, population), by = "f0_id")
+pop_dad %<>% rename(sire_population = population)
+
+#Combining and creating a factorial for mum and dad pop id
+new_parentage <- bind_cols(pop_mum, pop_dad$sire_population)
+new_parentage %<>% rename(Dam = f0_id,
+                          sire_population = ...9)
+
+#Clean up blank cells
+new_parentage %<>% mutate(sire_population = ifelse( is.na(sire_population) | sire_population == "", NA, sire_population) )
+
+new_parentage %<>% mutate(parent_pop = ifelse(is.na(sire_population), dam_population,
+                                             paste0(dam_population, "_" , sire_population)))
+#Rename F1_LD_ID to id
+new_parentage %<>% rename(id = F1_LD_ID)
+```
+
+## First we need to figure out who are the parents
+
+```{r}
+#Need baby ids first
+baby_data <- mi_data %>% select(id, treatment) %>% distinct %>% tibble()
+
+#Merge:
+baby_data <- left_join(baby_data, new_parentage %>% select(id, Dam, Sire, dam_population:parent_pop), by = "id")
+baby_data %>% filter(is.na(Dam) | is.na(Sire)) #Okay 2 babies one from each treatment we can't assign thats all good, exclude thems
+```
+
+## Now merge into the datasets just do with mi and cc and create z_temp
+
+```{r}
+# Mi data
+rev_mi_data <- left_join(mi_data, baby_data)
+rev_mi_data %<>% mutate(z_temp = scale(temp)[,1])
+write.csv(rev_mi_data, "~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/revision_mi.csv")
+
+# Complete
+rev_cc_data <-left_join(CC_data, baby_data)
+rev_cc_data %<>% mutate(z_temp = scale(temp)[,1])
+
+write.csv(rev_cc_data, "~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/data/processed/revision_complete.csv")
+```
+
+## Now what are the models we need to rerun?
+
+### Complete case
+
+```{r}
+cc_mod.rev.1 <- brm(lnmr ~ treatment*z_temp + z_lnmass + z_age 
+                    + (1 + z_temp | id) + (1 | samp_session) + (1 | series_temp) 
+                    + (1 | Dam) + (1 | Sire),
+                    data = rev_cc_data, 
+                    chains = 2, cores = 1, iter = 2000, warmup = 500, thin = 5,
+                    control = list(adapt_delta = 0.99, 
+                                   max_treedepth = 15))
+
+summary(cc_mod.rev.1)
+
+cc_mod.rev.2 <- brm(lnmr ~ treatment*z_temp + z_lnmass + z_age 
+                    + (1 + z_temp | id) + (1 | samp_session) + (1 | series_temp) 
+                    + (1 | Dam) + (1 | Sire) + (1 | parent_pop),
+                    data = rev_cc_data, 
+                    chains = 4, cores = 1, iter = 4000, warmup = 1500, thin = 5,
+                    control = list(adapt_delta = 0.99,
+                                   max_treedepth = 15))
+
+
+
+cc_mod.rev.3 <- brm(lnmr ~ treatment*z_temp + z_lnmass + z_age 
+                    + (1 + z_temp | id) + (1 | samp_session) + (1 | series_temp) 
+                    + (1 | Dam) + (1 | Sire) + (1 | dam_population),
+                    data = rev_cc_data, 
+                    chains = 4, cores = 1, iter = 4000, warmup = 1500, thin = 5,
+                    control = list(adapt_delta = 0.99,
+                                   max_treedepth = 15))
+
+cc_mod.rev.4 <- brm(lnmr ~ treatment*z_temp + z_lnmass + z_age 
+                    + (1 + z_temp | id) + (1 | samp_session) + (1 | series_temp) 
+                    + (1 | Dam),
+                    data = rev_cc_data, 
+                    chains = 4, cores = 1, iter = 4000, warmup = 1500, thin = 5,
+                    control = list(adapt_delta = 0.99,
+                                   max_treedepth = 15))
+
+cc_mod.rev.5 <- brm(lnmr ~ treatment*z_temp + z_lnmass + z_age 
+                    + (1 + z_temp | id) + (1 | samp_session) + (1 | series_temp) 
+                    + (1 | parent_pop),
+                    data = rev_cc_data, 
+                    chains = 4, cores = 1, iter = 4000, warmup = 1500, thin = 5,
+                    control = list(adapt_delta = 0.99,
+                                   max_treedepth = 15))
+```
+
+### Unpack
+
+```{r}
+#I want to compare it againest the og model
+cc_mod.3.obj <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/cc_mod.z3.obj")
+
+cc_mod.rev.1 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/rev/cc_mod.rev.1")
+summary(cc_mod.rev.1)
+
+cc_mod.rev.2 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/rev/cc_mod.rev.2")
+summary(cc_mod.rev.2)
+
+cc_mod.rev.3 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/rev/cc_mod.rev.3")
+summary(cc_mod.rev.3)
+
+cc_mod.rev.4 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/rev/cc_mod.rev.4")
+summary(cc_mod.rev.4)
+
+cc_mod.rev.5 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/rev/cc_mod.rev.5")
+summary(cc_mod.rev.5)
+
+cc_mod.rev.6 <- readRDS("~/Dropbox/1 - PhD/5 - Ldeli_inc_metabTelo/output/rds/rev/cc_mod.rev.6")
+summary(cc_mod.rev.6)
+```
+
+## Information criterions
+
+```{r}
+
+#Add waics
+ccr_waic.0 <- waic(cc_mod.3.obj)
+ccr_waic.1 <- waic(cc_mod.rev.1)
+ccr_waic.2 <- waic(cc_mod.rev.2)
+ccr_waic.3 <- waic(cc_mod.rev.3)
+ccr_waic.4 <- waic(cc_mod.rev.4)
+ccr_waic.5 <- waic(cc_mod.rev.5)
+ccr_waic.6 <- waic(cc_mod.rev.6)
+
+loo_compare(ccr_waic.0,
+            ccr_waic.1)
+
+wAIC_comp <- loo_compare(ccr_waic.1,
+                         ccr_waic.2,
+                         ccr_waic.3,
+                         ccr_waic.4,
+                         ccr_waic.5,
+                         ccr_waic.6)
+
+wAIC_comp <- wAIC_comp[,c(7, 1:2)]
+wAIC_comp
+
+#              elpd_diff se_diff
+# cc_mod.rev.2  0.0       0.0   
+# cc_mod.rev.4 -0.6       2.2   
+# cc_mod.rev.3 -1.8       2.3   
+# cc_mod.rev.6 -3.3       2.2   
+# cc_mod.rev.5 -3.7       2.1   
+# cc_mod.rev.1 -4.5       3.0 
+
+#Tabulate this: 
+as.data.frame(wAIC_comp) %>% write.csv("output/tab/rev/WAIC_comp.csv")
+
+
+
+
+# ccr_loo.0 <- add_criterion(cc_mod.3.obj, "loo")
+# ccr_loo.1 <- add_criterion(cc_mod.rev.1, "loo")
+# ccr_loo.2 <- add_criterion(cc_mod.rev.2, "loo")
+# ccr_loo.3 <- add_criterion(cc_mod.rev.3, "loo")
+# ccr_loo.4 <- add_criterion(cc_mod.rev.4, "loo")
+# ccr_loo.5 <- add_criterion(cc_mod.rev.5, "loo")
+# ccr_loo.6 <- add_criterion(cc_mod.rev.6, "loo")
+# 
+# loo(ccr_loo.1,
+#     ccr_loo.2,
+#     ccr_loo.3,
+#     ccr_loo.4,
+#     ccr_loo.5,
+#     ccr_loo.6)
+
+```
+
+
+
